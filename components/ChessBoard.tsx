@@ -2,8 +2,8 @@
 
 /* eslint-disable no-unused-vars */
 
-import React, { useMemo, useState, useEffect } from "react";
-import { motion, AnimatePresence, useMotionValue, useSpring } from "framer-motion";
+import React, { useMemo, useState, useRef } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import ChessPiece from "./ChessPieces";
 
 type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "k";
@@ -11,10 +11,11 @@ type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "
 type Props = {
     boardState?: string;
     onMove?: (from: string, to: string) => void;
-    userSide?: "WHITE" | "BLACK" | "BOTH" | null; // user's side
+    userSide?: "WHITE" | "BLACK" | "BOTH" | null;
 };
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
+
 function squareName(r: number, c: number) {
     return files[c] + (8 - r);
 }
@@ -23,119 +24,164 @@ function decodeBoard(base64?: string) {
     if (!base64) return Array(8).fill(null).map(() => Array(8).fill("\0"));
     const bin = atob(base64);
     const board: string[][] = [];
-    for (let r = 0; r < 8; r++) board.push([...bin].slice(r * 8, r * 8 + 8));
+    for (let r = 0; r < 8; r++) {
+        board.push([...bin].slice(r * 8, r * 8 + 8));
+    }
     return board;
 }
 
 export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: Props) {
+
     let board = useMemo(() => decodeBoard(boardState), [boardState]);
 
-    // EDGE CASE: if userSide is somehow both, force as WHITE
     const side = userSide === "BLACK" ? "BLACK" : "WHITE";
 
-    // Mirror board if user is black
     if (side === "BLACK") {
-        board = [...board].reverse().map(row => [...row].reverse());
+        board = [...board].reverse().map(r => [...r].reverse());
     }
 
-    const [draggedPiece, setDraggedPiece] = useState<{ piece: Piece; from: string } | null>(null);
-    const [emptyImage, setEmptyImage] = useState<HTMLImageElement | null>(null);
+    const boardRef = useRef<HTMLDivElement | null>(null);
 
-    const mouseX = useMotionValue(0);
-    const mouseY = useMotionValue(0);
-    const smoothX = useSpring(mouseX, { damping: 50, stiffness: 1000 });
-    const smoothY = useSpring(mouseY, { damping: 50, stiffness: 1000 });
+    const [dragged, setDragged] = useState<{ piece: Piece, from: string } | null>(null);
 
-    useEffect(() => {
-        const img = new Image();
-        img.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-        setEmptyImage(img);
+    const [pointer, setPointer] = useState({ x: 0, y: 0 });
 
-        const handleGlobalMove = (e: MouseEvent) => {
-            mouseX.set(e.clientX);
-            mouseY.set(e.clientY);
-        };
+    function squareFromPointer(px: number, py: number) {
 
-        window.addEventListener("dragover", handleGlobalMove);
-        window.addEventListener("mousemove", handleGlobalMove);
+        const boardEl = boardRef.current;
+        if (!boardEl) return null;
 
-        return () => {
-            window.removeEventListener("dragover", handleGlobalMove);
-            window.removeEventListener("mousemove", handleGlobalMove);
-        };
-    }, [mouseX, mouseY]);
+        const rect = boardEl.getBoundingClientRect();
 
-    const handleDragStart = (e: React.DragEvent, piece: Piece, square: string) => {
-        if (emptyImage) e.dataTransfer.setDragImage(emptyImage, 0, 0);
-        mouseX.set(e.clientX);
-        mouseY.set(e.clientY);
-        e.dataTransfer.setData("from", square);
-        setDraggedPiece({ piece, from: square });
-    };
+        const size = rect.width / 8;
 
-    const handleDrop = (e: React.DragEvent, toSquare: string) => {
-        const fromSquare = e.dataTransfer.getData("from");
-        setDraggedPiece(null);
-        if (fromSquare && fromSquare !== toSquare) onMove?.(fromSquare, toSquare);
-    };
+        const file = Math.floor((px - rect.left) / size);
+        const rank = Math.floor((py - rect.top) / size);
+
+        if (file < 0 || file > 7 || rank < 0 || rank > 7) return null;
+
+        const r = side === "BLACK" ? 7 - rank : rank;
+        const c = side === "BLACK" ? 7 - file : file;
+
+        return squareName(r, c);
+    }
+
+    function handlePointerDown(
+        e: React.PointerEvent,
+        piece: Piece,
+        square: string
+    ) {
+
+        e.preventDefault();
+
+        (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+        setPointer({
+            x: e.clientX,
+            y: e.clientY
+        });
+
+        setDragged({ piece, from: square });
+        setDragged({ piece, from: square });
+    }
+
+    function handlePointerMove(e: React.PointerEvent) {
+
+        if (!dragged) return;
+
+        setPointer({
+            x: e.clientX,
+            y: e.clientY
+        });
+    }
+
+    function handlePointerUp(e: React.PointerEvent) {
+
+        if (!dragged) return;
+
+        const toSquare = squareFromPointer(e.clientX, e.clientY);
+
+        if (toSquare && toSquare !== dragged.from) {
+            onMove?.(dragged.from, toSquare);
+        }
+
+        setDragged(null);
+    }
 
     return (
-        <div className="relative select-none">
-            <div className="grid grid-cols-8 w-[480px] max-w-full aspect-square bg-neutral-900 p-1 shadow-2xl">
+
+        <div className="relative select-none touch-none">
+
+            <div
+                ref={boardRef}
+                onPointerMove={handlePointerMove}
+                onPointerUp={handlePointerUp}
+                onPointerCancel={() => setDragged(null)}
+                className="grid grid-cols-8 w-full max-w-[520px] aspect-square bg-neutral-900 p-1 shadow-2xl mx-auto"
+            >
+
                 {board.map((row, r) =>
                     row.map((piece, c) => {
-                        const square = squareName(side === "BLACK" ? 7 - r : r, side === "BLACK" ? 7 - c : c);
+
+                        const square = squareName(
+                            side === "BLACK" ? 7 - r : r,
+                            side === "BLACK" ? 7 - c : c
+                        );
+
                         const isDark = (r + c) % 2 !== 0;
-                        const isOriginalPiece = draggedPiece?.from === square;
+                        const isOriginal = dragged?.from === square;
 
                         return (
+
                             <div
                                 key={square}
-                                onDragOver={(e) => e.preventDefault()}
-                                onDrop={(e) => handleDrop(e, square)}
                                 className={`relative aspect-square flex items-center justify-center ${isDark ? "bg-[#769656]" : "bg-[#eeeed2]"}`}
                             >
+
                                 {piece !== "\0" && (
+
                                     <div
-                                        draggable
-                                        onDragStart={(e) => handleDragStart(e, piece as Piece, square)}
-                                        onDragEnd={() => setDraggedPiece(null)}
-                                        className={`w-full h-full flex items-center justify-center cursor-grab active:cursor-grabbing transition-opacity ${isOriginalPiece ? "opacity-20" : "opacity-100"}`}
+                                        onPointerDown={(e) => handlePointerDown(e, piece as Piece, square)}
+                                        className={`w-full h-full flex items-center justify-center ${isOriginal ? "opacity-20" : ""
+                                            }`}
                                     >
+
                                         <ChessPiece piece={piece as Piece} />
+
                                     </div>
+
                                 )}
+
                             </div>
+
                         );
+
                     })
                 )}
+
             </div>
 
-            {/* Floating Dragged Piece */}
             <AnimatePresence>
-                {draggedPiece && (
-                    <motion.div
+                {dragged && (
+                    <div
                         style={{
                             position: "fixed",
-                            x: smoothX,
-                            y: smoothY,
-                            left: 0,
-                            top: 0,
-                            translateX: "-20%",
-                            translateY: "-20%",
+                            left: pointer.x - 16,
+                            top: pointer.y - 16,
+                            transform: "translate(-16, -16)",
                             pointerEvents: "none",
                             zIndex: 9999,
-                            width: 60,
-                            height: 60,
+                            width: 72,
+                            height: 72
                         }}
-                        initial={{ opacity: 0, scale: 1 }}
-                        animate={{ opacity: 1, scale: 1.2 }}
-                        exit={{ opacity: 0, scale: 1 }}
                     >
-                        <ChessPiece piece={draggedPiece.piece} />
-                    </motion.div>
+                        <ChessPiece piece={dragged.piece} />
+                    </div>
                 )}
-            </AnimatePresence>
-        </div>
+            </AnimatePresence >
+
+        </div >
+
     );
+
 }
