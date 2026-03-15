@@ -10,6 +10,9 @@ function randomID() {
 }
 
 function getApiBase() {
+    if (process.env.NEXT_PUBLIC_API) {
+        return process.env.NEXT_PUBLIC_API
+    }
     if (typeof window === "undefined") return `http://${API_HOST}`; // fallback for SSR
     const protocol = window.location.protocol === "https:" ? "https" : "http";
     return `${protocol}://${API_HOST}`;

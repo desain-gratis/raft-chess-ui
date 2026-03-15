@@ -9,6 +9,10 @@ const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411"
 
 function getApiBase() {
+    if (process.env.NEXT_PUBLIC_API) {
+        return process.env.NEXT_PUBLIC_API
+    }
+
     if (typeof window === "undefined") return `http://${API_HOST}`
     const protocol = window.location.protocol === "https:" ? "https" : "http"
     return `${protocol}://${API_HOST}`

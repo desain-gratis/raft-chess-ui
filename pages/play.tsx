@@ -11,6 +11,10 @@ const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411";
 
 function getApiBase() {
+  if (process.env.NEXT_PUBLIC_API) {
+    return process.env.NEXT_PUBLIC_API
+  }
+
   if (typeof window === "undefined") return `http://${API_HOST}`; // fallback for SSR
   const protocol = window.location.protocol === "https:" ? "https" : "http";
   return `${protocol}://${API_HOST}`;
@@ -291,46 +295,53 @@ export default function PlayPage() {
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm font-sans">
-      <div className="max-w-6xl mx-auto px-6 py-6">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+
         {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-2xl font-bold text-blue-400">Game #{id}</h1>
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+          <h1 className="text-xl sm:text-2xl font-bold text-blue-400">
+            Game #{id}
+          </h1>
+
           <button
             onClick={() => router.push("/")}
-            className="px-3 py-1 text-sm rounded border border-neutral-700 hover:bg-neutral-800 transition"
+            className="px-4 py-2 rounded border border-neutral-700 hover:bg-neutral-800 transition text-sm"
           >
             Lobby
           </button>
         </div>
 
-        {/* Main Grid */}
-        <div className="grid grid-cols-[1fr_280px] gap-6 items-start">
-          {/* Chess Board */}
+        {/* Responsive Layout */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
+
+          {/* Chessboard */}
           <div className="flex justify-center">
-            <div className="w-[300px] sm:w-[380px] cursor-grab active:cursor-grabbing select-none shadow-2xl rounded-lg overflow-hidden">
+            <div className="w-full max-w-[420px] cursor-grab active:cursor-grabbing select-none shadow-2xl rounded-lg overflow-hidden">
               <ChessBoard
                 boardState={game?.state?.board_state}
                 onMove={(from, to) => sendMove(from, to)}
-                userSide={userSide} // PASS userSide
+                userSide={userSide}
               />
             </div>
           </div>
 
           {/* Sidebar */}
           <div className="flex flex-col gap-4">
+
             {/* Game Info */}
             <div className="border border-neutral-800 rounded bg-neutral-900 p-4 space-y-3">
-              <div className="text-xs text-neutral-400 font-semibold mb-2">
+              <div className="text-xs text-neutral-400 font-semibold mb-1">
                 Game Info
               </div>
 
-              {game && (<div className="flex justify-between">
-                <span>Status</span>
-                <span className={`font-bold ${statusColors[game.state.status] || "text-white"}`}>
-                  {game?.state.status.replaceAll("_", " ")}
-                </span>
-              </div>)
-              }
+              {game && (
+                <div className="flex justify-between">
+                  <span>Status</span>
+                  <span className={`font-bold ${statusColors[game.state.status] || "text-white"}`}>
+                    {game.state.status.replaceAll("_", " ")}
+                  </span>
+                </div>
+              )}
 
               <div className="flex justify-between">
                 <span>Turn</span>
@@ -344,125 +355,187 @@ export default function PlayPage() {
 
               <div className="flex justify-between">
                 <span>Host</span>
-                <span className="font-bold text-blue-400">{game?.request.player.username}</span>
+                <span className="font-bold text-blue-400">
+                  {game?.request.player.username}
+                </span>
               </div>
 
-
               {game?.state.status === "PLAYING" && game.state.player && (
-                <div className="space-y-1">
-                  <div className="text-xs">
-                    Players:
+                <div className="space-y-1 pt-2 border-t border-neutral-800">
+                  <div className="text-xs text-neutral-400">
+                    Players
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-white font-bold">{game.state.player.WHITE?.username || "?"} (White)</span>
-                    <span className="text-yellow-400 font-bold">{game.state.player.BLACK?.username || "?"} (Black)</span>
+
+                  <div className="flex justify-between text-xs sm:text-sm">
+                    <span className="text-white font-bold">
+                      {game.state.player.WHITE?.username || "?"} (White)
+                    </span>
+
+                    <span className="text-yellow-400 font-bold">
+                      {game.state.player.BLACK?.username || "?"} (Black)
+                    </span>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Join / Play */}
+            {/* Join */}
             {game?.state.status === "WAITING_FOR_OTHER_PLAYER" && (
               <div className="space-y-2">
+
                 {!localStorage.getItem("username") ? (
                   <form
                     onSubmit={(e) => {
                       e.preventDefault()
+
                       const form = e.currentTarget
                       const input = form.elements.namedItem("username") as HTMLInputElement
                       const username = input.value.trim()
+
                       if (!username) return showToast("Please enter a username", "error")
 
-                      // Save username and generate authorization token
                       localStorage.setItem("username", username)
                       getUsernameAuthorization(username)
 
-                      joinGame() // join after setting username & token
+                      joinGame()
                     }}
                     className="space-y-2"
                   >
-                    <label className="block text-sm text-neutral-300">Enter your username:</label>
+                    <label className="block text-sm text-neutral-300">
+                      Enter your username
+                    </label>
+
                     <input
                       type="text"
                       name="username"
                       placeholder="Your username"
-                      className="w-full px-3 py-2 rounded border border-neutral-700 bg-neutral-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="w-full px-3 py-2.5 rounded border border-neutral-700 bg-neutral-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
                       autoFocus
                     />
+
                     <button
                       type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded"
                     >
-                      Join as this username
+                      Join game
                     </button>
                   </form>
+
                 ) : (
+
                   <button
                     onClick={joinGame}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
+                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded"
                   >
                     Join as {localStorage.getItem("username")}
                   </button>
+
                 )}
+
               </div>
             )}
 
-            {/* Player Turn Info */}
+            {/* Turn Info */}
             {game?.state?.status === "PLAYING" && (() => {
+
               const role = getPlayerRole(game)
               const myTurn = isMyTurn(game, role)
-              if (!role) return <div className="text-xs text-neutral-400">Spectating</div>
+
+              if (!role)
+                return (
+                  <div className="text-xs text-neutral-400">
+                    Spectating
+                  </div>
+                )
 
               return (
                 <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 shadow-inner text-center space-y-2">
-                  <div className="text-xs font-semibold text-green-400">You are playing ({role})</div>
+
+                  <div className="text-xs font-semibold text-green-400">
+                    You are playing ({role})
+                  </div>
+
                   {myTurn ? (
-                    <div className="bg-blue-600 text-white text-xs py-1 rounded">Your move ♟</div>
+                    <div className="bg-blue-600 text-white text-xs py-1.5 rounded">
+                      Your move ♟
+                    </div>
                   ) : (
-                    <div className="bg-neutral-800 text-neutral-300 text-xs py-1 rounded">Waiting for opponent</div>
+                    <div className="bg-neutral-800 text-neutral-300 text-xs py-1.5 rounded">
+                      Waiting for opponent
+                    </div>
                   )}
+
                 </div>
               )
+
             })()}
 
             {/* Move History */}
-            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900">
-              <h2 className="text-xs text-neutral-400 font-semibold mb-2">Move History</h2>
-              <ul className="space-y-1">
-                {(() => {
-                  let lastDate: string | null = null
-                  return history
-                    .sort((a, b) => a.current_sequence - b.current_sequence)
-                    .map(move => {
-                      const moveDate = new Date(move.created_at)
-                      const localDateStr = moveDate.toLocaleDateString()
-                      const timeStr = moveDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-                      const dayChanged = lastDate && lastDate !== localDateStr
-                      lastDate = localDateStr
-                      const usernameColor = move.side === "WHITE" ? "text-white" : "text-yellow-400"
+            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 max-h-40 md:max-h-64 overflow-y-auto">
 
-                      return (
-                        <React.Fragment key={move.current_sequence}>
-                          {dayChanged && <li className="text-center text-neutral-500 font-bold">----</li>}
-                          <li className="flex items-center justify-between text-xs hover:bg-neutral-800 rounded px-1 py-0.5 transition">
-                            <div className="flex items-center gap-1">
-                              <span className="text-neutral-400">{move.current_sequence}.</span>
-                              <span className={`font-bold ${usernameColor}`}>{move.player?.username || "Unknown"}</span>
-                              <span className="text-neutral-400 ml-1">({move.side})</span>
-                            </div>
-                            <div className="flex items-center gap-1">
-                              <ChessPiece piece={move.piece_from as any} />
-                              <span className="mx-1">{move.from} → {move.to}</span>
-                              {move.piece_to && <ChessPiece piece={move.piece_to as any} />}
-                              <span className="text-neutral-400 text-[10px] ml-2">({timeStr})</span>
-                            </div>
-                          </li>
-                        </React.Fragment>
-                      )
+              <h2 className="text-xs text-neutral-400 font-semibold mb-2">
+                Move History
+              </h2>
+
+              <ul className="space-y-1">
+
+                {history
+                  .sort((a, b) => a.current_sequence - b.current_sequence)
+                  .map(move => {
+
+                    const moveDate = new Date(move.created_at)
+
+                    const timeStr = moveDate.toLocaleTimeString([], {
+                      hour: "2-digit",
+                      minute: "2-digit"
                     })
-                })()}
+
+                    const usernameColor =
+                      move.side === "WHITE"
+                        ? "text-white"
+                        : "text-yellow-400"
+
+                    return (
+                      <li
+                        key={move.current_sequence}
+                        className="flex justify-between items-center text-xs hover:bg-neutral-800 rounded px-1 py-0.5"
+                      >
+
+                        <div className="flex items-center gap-1">
+                          <span className="text-neutral-400">
+                            {move.current_sequence}.
+                          </span>
+
+                          <span className={`font-bold ${usernameColor}`}>
+                            {move.player?.username || "Unknown"}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-1">
+                          <ChessPiece piece={move.piece_from as any} />
+
+                          <span>
+                            {move.from} → {move.to}
+                          </span>
+
+                          {move.piece_to && (
+                            <ChessPiece piece={move.piece_to as any} />
+                          )}
+
+                          <span className="text-neutral-400 text-[10px] ml-1">
+                            ({timeStr})
+                          </span>
+                        </div>
+
+                      </li>
+                    )
+
+                  })}
+
               </ul>
+
             </div>
+
           </div>
         </div>
       </div>
@@ -470,8 +543,13 @@ export default function PlayPage() {
       {/* Toast */}
       {toast && (
         <div
-          className={`fixed bottom-6 right-6 text-white text-sm px-4 py-2 rounded shadow-lg animate-fade-in
-          ${toast.type === "error" ? "bg-red-600" : toast.type === "success" ? "bg-green-600" : "bg-blue-600"}`}
+          className={`fixed bottom-4 right-4 text-white text-sm px-4 py-2 rounded shadow-lg
+        ${toast.type === "error"
+              ? "bg-red-600"
+              : toast.type === "success"
+                ? "bg-green-600"
+                : "bg-blue-600"
+            }`}
         >
           {toast.message}
         </div>
