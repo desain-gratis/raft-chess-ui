@@ -1,0 +1,35 @@
+{
+  "name": "deployd-ui",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "export": "next export",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "flexsearch": "0.7.43",
+    "framer-motion": "^12.36.0",
+    "js-yaml": "4.1.0",
+    "motion": "^12.36.0",
+    "next": "14.0.0",
+    "next-themes": "^0.4.6",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "4.0.5",
+    "@types/node": "25.3.0",
+    "@types/react": "19.2.14",
+    "autoprefixer": "10.4.14",
+    "eslint": "8.44.0",
+    "eslint-config-next": "14.0.0",
+    "eslint-config-prettier": "9.0.0",
+    "postcss": "8.4.26",
+    "prettier": "3.5.0",
+    "tailwindcss": "3.4.7",
+    "typescript": "5.2.2"
+  }
+}
