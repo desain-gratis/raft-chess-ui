@@ -206,7 +206,7 @@ export default function PlayPage() {
 
     try {
 
-      const res = await fetch("http://localhost:9411/move", {
+      const res = await fetch(`${getApiBase()}/move`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
@@ -265,7 +265,7 @@ export default function PlayPage() {
       },
     }
 
-    const res = await fetch("http://localhost:9411/play", {
+    const res = await fetch(`${getApiBase()}/play`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
