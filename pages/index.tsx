@@ -36,7 +36,7 @@ type Game = {
 
 export default function Lobby() {
     const [games, setGames] = useState<Map<string, Game>>(new Map())
-    const [loading, setLoading] = useState(true)
+    // const [loading, setLoading] = useState(true)
     const [query, setQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState("ALL")
     const [showMyGames, setShowMyGames] = useState(false)
@@ -70,7 +70,7 @@ export default function Lobby() {
         const res = await fetch(`${getApiBase()}/list`, { headers: { "X-Namespace": NAMESPACE } })
         const json = await res.json()
         json.success?.forEach((game: Game) => mergeGame(game))
-        setLoading(false)
+        // setLoading(false)
     }
 
     function connectWS() {

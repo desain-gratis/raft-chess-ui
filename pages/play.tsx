@@ -78,7 +78,7 @@ export default function PlayPage() {
       const json = await res.json()
       if (json.success?.length) {
         // Deduplicate just in case
-        const uniqueMoves: EventPieceMoved[] = []
+        // const uniqueMoves: EventPieceMoved[] = []
         json.success.forEach((m: EventPieceMoved) => addMoveToHistory(m))
       }
     } catch (err) {
@@ -541,12 +541,6 @@ const statusColors: Record<Status, string> = {
   FINISHED: "text-neutral-400",
 }
 
-function getOpponent(game: ChessGame, myUID: string): Player | null {
-  const players = game.state.player
-  if (!players) return null
-
-  return Object.values(players).find(p => p.client_uid !== myUID) || null
-}
 
 export type Side = "WHITE" | "BLACK"
 
