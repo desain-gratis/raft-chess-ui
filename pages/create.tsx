@@ -1,5 +1,6 @@
-import React from "react"
-import { useEffect, useState } from "react"
+"use client"
+
+import React, { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 
 const API = "http://localhost:9411/create"
@@ -8,8 +9,27 @@ function randomID() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
-export default function CreateGamePage() {
+// --- generate per-username token ---
+function generateAuthToken(length = 32) {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+    let token = ""
+    for (let i = 0; i < length; i++) {
+        token += chars.charAt(Math.floor(Math.random() * chars.length))
+    }
+    return token
+}
 
+function getUsernameAuthorization(username: string) {
+    const key = `username_auth_${username}`
+    let token = localStorage.getItem(key)
+    if (!token) {
+        token = generateAuthToken()
+        localStorage.setItem(key, token)
+    }
+    return token
+}
+
+export default function CreateGamePage() {
     const router = useRouter()
 
     const [username, setUsername] = useState("")
@@ -19,7 +39,6 @@ export default function CreateGamePage() {
     const [authorization, setAuthorization] = useState("")
 
     useEffect(() => {
-
         let uid = localStorage.getItem("client_uid")
         let auth = localStorage.getItem("authorization")
 
@@ -38,14 +57,16 @@ export default function CreateGamePage() {
 
         const savedName = localStorage.getItem("username")
         if (savedName) setUsername(savedName)
-
     }, [])
 
     async function createGame(e: React.FormEvent) {
-
         e.preventDefault()
 
+        if (!username.trim()) return alert("Username is required")
+
         localStorage.setItem("username", username)
+
+        const usernameAuth = getUsernameAuthorization(username)
 
         const payload = {
             namespace: "dg",
@@ -53,18 +74,17 @@ export default function CreateGamePage() {
             player: {
                 client_uid: clientUID,
                 authorization: authorization,
-                username: username
+                username: username,
+                username_auth: usernameAuth, // <-- added token
             },
             your_side: side,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
         }
 
         const res = await fetch(API, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify(payload)
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(payload),
         })
 
         if (!res.ok) {
@@ -76,38 +96,26 @@ export default function CreateGamePage() {
     }
 
     return (
-
         <div className="min-h-screen bg-neutral-900 flex items-center justify-center px-4">
-
             <div className="w-full max-w-md bg-neutral-800 rounded-xl shadow-lg p-6">
-
-                <h1 className="text-xl font-semibold text-white mb-6">
-                    Create New Game
-                </h1>
+                <h1 className="text-xl font-semibold text-white mb-6">Create New Game</h1>
 
                 <form onSubmit={createGame} className="space-y-5">
-
                     <div>
-                        <label className="block text-sm text-neutral-300 mb-1">
-                            Username
-                        </label>
-
+                        <label className="block text-sm text-neutral-300 mb-1">Username</label>
                         <input
                             value={username}
-                            onChange={e => setUsername(e.target.value)}
+                            onChange={(e) => setUsername(e.target.value)}
                             required
                             className="w-full px-3 py-2 rounded-lg bg-neutral-700 text-white border border-neutral-600 focus:outline-none focus:ring-2 focus:ring-green-500"
                         />
                     </div>
 
                     <div>
-                        <label className="block text-sm text-neutral-300 mb-1">
-                            Your Side
-                        </label>
-
+                        <label className="block text-sm text-neutral-300 mb-1">Your Side</label>
                         <select
                             value={side}
-                            onChange={e => setSide(e.target.value)}
+                            onChange={(e) => setSide(e.target.value)}
                             className="w-full px-3 py-2 rounded-lg bg-neutral-700 text-white border border-neutral-600 focus:outline-none focus:ring-2 focus:ring-green-500"
                         >
                             <option value="WHITE">WHITE</option>
@@ -121,12 +129,8 @@ export default function CreateGamePage() {
                     >
                         Create Game
                     </button>
-
                 </form>
-
             </div>
-
         </div>
-
     )
 }

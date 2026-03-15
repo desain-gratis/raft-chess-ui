@@ -1,12 +1,28 @@
+"use client"
+
 import React from "react"
 
 import { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import FlexSearch from "flexsearch"
 
-const LIST_ENDPOINT = "http://localhost:9411/list"
-const WS_ENDPOINT = "ws://localhost:9411/ws?namespace=*"
-const NAMESPACE = "*"
+const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
+const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411";
+
+function getApiBase() {
+    if (typeof window === "undefined") return `http://${API_HOST}`; // fallback for SSR
+    const protocol = window.location.protocol === "https:" ? "https" : "http";
+    return `${protocol}://${API_HOST}`;
+}
+
+function getWsUrl(namespace: string) {
+    if (typeof window === "undefined") return `ws://${WS_HOST}/ws?namespace=${namespace}`;
+    const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+    return `${protocol}://${WS_HOST}/ws?namespace=${namespace}`;
+}
+
+
+const NAMESPACE = "dg"
 
 type Game = {
     id: string
@@ -80,9 +96,9 @@ export default function Lobby() {
 
     async function loadInitialGames() {
 
-        const res = await fetch(LIST_ENDPOINT, {
+        const res = await fetch(`${getApiBase()}/list`, {
             headers: { "X-Namespace": NAMESPACE }
-        })
+        });
 
         const json = await res.json()
 
@@ -92,24 +108,22 @@ export default function Lobby() {
     }
 
     function connectWS() {
-
-        const ws = new WebSocket(WS_ENDPOINT)
+        const ws = new WebSocket(getWsUrl(NAMESPACE));
 
         ws.onmessage = ev => {
-
             try {
+                const msg = JSON.parse(ev.data);
 
-                const game: Game = JSON.parse(ev.data)
-
-                if (game.id) mergeGame(game)
-
+                // Only handle "game-updated" messages
+                if (msg.type === "game-updated" && msg.value) {
+                    mergeGame(msg.value);
+                }
             } catch (e) {
-                console.error(e)
+                console.error(e);
             }
+        };
 
-        }
-
-        ws.onclose = () => setTimeout(connectWS, 2000)
+        ws.onclose = () => setTimeout(connectWS, 2000);
     }
 
     useEffect(() => {
@@ -206,7 +220,6 @@ export default function Lobby() {
 
                                 <th className="text-left px-3 py-2">Game</th>
                                 <th className="text-left px-3 py-2">Host</th>
-                                <th className="text-left px-3 py-2">UID</th>
                                 <th className="text-left px-3 py-2">Status</th>
                                 <th className="text-right px-3 py-2"></th>
 
@@ -243,10 +256,6 @@ export default function Lobby() {
 
                                         <td className="px-3 py-2">
                                             {host}
-                                        </td>
-
-                                        <td className="px-3 py-2 font-mono text-neutral-500">
-                                            {uid}
                                         </td>
 
                                         <td className={`px-3 py-2 font-medium ${statusColor}`}>

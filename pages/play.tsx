@@ -5,13 +5,37 @@ import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 import ChessBoard from "../components/ChessBoard"
 
-const API = "http://localhost:9411/list"
-const WS_BASE = "ws://localhost:9411/ws"
+
+const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
+const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411";
+
+function getApiBase() {
+  if (typeof window === "undefined") return `http://${API_HOST}`; // fallback for SSR
+  const protocol = window.location.protocol === "https:" ? "https" : "http";
+  return `${protocol}://${API_HOST}`;
+}
+
+function getWsUrl(gameId: string, namespace: string) {
+  if (typeof window === "undefined") return `ws://${WS_HOST}/ws?namespace=${namespace}&id=${gameId}`;
+  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
+  return `${protocol}://${WS_HOST}/ws?namespace=${namespace}&id=${gameId}`;
+}
+
+
 const NAMESPACE = "dg"
 
 type Toast = {
   message: string
   type?: "success" | "error" | "info"
+}
+
+type EventPieceMoved = {
+  game: any
+  from: string
+  to: string
+  by: { name?: string; client_uid?: string }
+  at: string
+  sequence: number
 }
 
 
@@ -22,6 +46,7 @@ export default function PlayPage() {
 
   const [game, setGame] = useState<any>(null)
   const [toast, setToast] = useState<Toast | null>(null)
+  const [history, setHistory] = useState<EventPieceMoved[]>([])
 
   function showToast(message: string, type: Toast["type"] = "info") {
 
@@ -31,6 +56,22 @@ export default function PlayPage() {
       setToast(null)
     }, 3000)
 
+  }
+
+  async function loadHistory(gameId: string) {
+    try {
+      const res = await fetch(`${getApiBase()}/history?id=${gameId}`, {
+        headers: { "X-Namespace": NAMESPACE },
+      })
+      const json = await res.json()
+      if (json.success?.length) {
+        // Deduplicate just in case
+        const uniqueMoves: EventPieceMoved[] = []
+        json.success.forEach((m: EventPieceMoved) => addMoveToHistory(m))
+      }
+    } catch (err) {
+      showToast("Failed to load history", "error")
+    }
   }
 
 
@@ -53,8 +94,8 @@ export default function PlayPage() {
 
       let role = null
 
-      if (players?.white?.client_uid === myUID) role = "WHITE"
-      if (players?.black?.client_uid === myUID) role = "BLACK"
+      if (players["WHITE"]?.client_uid === myUID) role = "WHITE"
+      if (players["BLACK"]?.client_uid === myUID) role = "BLACK"
 
       // game start notification
       if (
@@ -82,9 +123,9 @@ export default function PlayPage() {
 
   async function loadGame(gameId: string) {
 
-    const res = await fetch(`${API}?id=${gameId}`, {
+    const res = await fetch(`${getApiBase()}/list?id=${gameId}`, {
       headers: { "X-Namespace": NAMESPACE }
-    })
+    });
 
     const json = await res.json()
 
@@ -94,28 +135,32 @@ export default function PlayPage() {
 
   }
 
-  function connectWS(gameId: string) {
+  // --- Append to history with deduplication ---
+  async function addMoveToHistory(move: EventPieceMoved) {
+    setHistory((prev) => {
+      // Check if this sequence already exists
+      if (prev.some((m) => m.sequence === move.sequence)) return prev
+      return [...prev, move]
+    })
+  }
 
-    const ws = new WebSocket(
-      `${WS_BASE}?namespace=${NAMESPACE}&id=${gameId}`
-    )
+
+  function connectWS(gameId: string) {
+    const ws = new WebSocket(getWsUrl(gameId, NAMESPACE));
 
     ws.onmessage = (ev) => {
-
-
-      const msg = JSON.parse(ev.data)
-
-      if (msg.state) {
-        mergeGame(msg)
+      const msg = JSON.parse(ev.data);
+      if (msg.type === "game-updated" && msg.value) {
+        mergeGame(msg.value);
       }
 
+      if (msg.type === "piece-moved" && msg.value) {
+        addMoveToHistory(msg.value)
+      }
 
+    };
 
-    }
-
-    ws.onclose = () => {
-      setTimeout(() => connectWS(gameId), 2000)
-    }
+    ws.onclose = () => setTimeout(() => connectWS(gameId), 2000);
   }
 
   async function sendMove(from: string, to: string) {
@@ -176,9 +221,12 @@ export default function PlayPage() {
 
 
   async function joinGame() {
-
     if (!id) return
 
+    let username = localStorage.getItem("username")
+    if (!username) return showToast("Username is required", "error")
+
+    const usernameAuth = getUsernameAuthorization(username)
     const client_uid = localStorage.getItem("client_uid")
     const authorization = localStorage.getItem("authorization")
 
@@ -188,16 +236,16 @@ export default function PlayPage() {
       created_at: new Date().toISOString(),
       player: {
         client_uid,
-        authorization
-      }
+        username,
+        username_auth: usernameAuth,
+        authorization,
+      },
     }
 
     const res = await fetch("http://localhost:9411/play", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(body)
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     })
 
     if (res.ok) {
@@ -205,19 +253,17 @@ export default function PlayPage() {
     } else {
       showToast("Failed to join game", "error")
     }
-
   }
 
 
   useEffect(() => {
-
     if (!id) return
 
     const gameId = String(id)
 
     loadGame(gameId)
+    loadHistory(gameId)
     connectWS(gameId)
-
   }, [id])
 
   return (
@@ -294,16 +340,47 @@ export default function PlayPage() {
             {/* JOIN CTA */}
 
             {game?.state?.status === "WAITING_FOR_OTHER_PLAYER" && (
+              <div className="space-y-2">
+                {!localStorage.getItem("username") ? (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault()
+                      const form = e.currentTarget
+                      const input = form.elements.namedItem("username") as HTMLInputElement
+                      const username = input.value.trim()
+                      if (!username) return showToast("Please enter a username", "error")
 
-              <button
-                onClick={joinGame}
-                className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
-              >
-                Join / Play
-              </button>
+                      // Save username and generate authorization token
+                      localStorage.setItem("username", username)
+                      getUsernameAuthorization(username)
 
+                      joinGame() // join after setting username & token
+                    }}
+                    className="space-y-2"
+                  >
+                    <input
+                      type="text"
+                      name="username"
+                      placeholder="Enter your username"
+                      className="w-full px-2 py-1 text-sm rounded border border-neutral-700 bg-neutral-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    <button
+                      type="submit"
+                      className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
+                    >
+                      Join / Play
+                    </button>
+                  </form>
+                ) : (
+                  <button
+                    onClick={joinGame}
+                    className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
+                  >
+                    Join / Play
+                  </button>
+                )}
+              </div>
             )}
-
 
             {game?.state?.status === "PLAYING" && (() => {
 
@@ -348,10 +425,44 @@ export default function PlayPage() {
 
             })()}
 
+            <div className="border border-neutral-800 rounded bg-neutral-900 p-3 max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900">
+              <div className="text-xs text-neutral-400 mb-2">Move History</div>
+              <ul className="text-xs space-y-1">
+                {(() => {
+                  let lastDate: string | null = null
+
+                  return history
+                    .sort((a, b) => a.sequence - b.sequence)
+                    .map((move) => {
+                      const moveDate = new Date(move.at)
+                      const localDateStr = moveDate.toLocaleDateString()
+                      const timeStr = moveDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+
+                      const dayChanged = lastDate && lastDate !== localDateStr
+                      lastDate = localDateStr
+
+                      return (
+                        <React.Fragment key={move.sequence}>
+                          {dayChanged && (
+                            <li className="text-center text-neutral-500">----</li>
+                          )}
+                          <li className="flex justify-between">
+                            <span>{move.by?.name || "Unknown"}:</span>
+                            <span>
+                              {move.from} → {move.to}{" "}
+                              <span className="text-neutral-400 text-[10px]">{`(${timeStr})`}</span>
+                            </span>
+                          </li>
+                        </React.Fragment>
+                      )
+                    })
+                })()}
+              </ul>
+            </div>
 
           </div>
-
         </div>
+
 
       </div>
 
@@ -391,7 +502,7 @@ function getPlayerRole(game: any) {
   const players = game.state.player
 
   if (players["WHITE"]?.client_uid === myUID) return "WHITE"
-  if (players["BLACK"].client_uid === myUID) return "BLACK"
+  if (players["BLACK"]?.client_uid === myUID) return "BLACK"
 
   return null
 
@@ -406,3 +517,24 @@ function isMyTurn(game: any, role: string | null) {
 }
 
 
+
+// --- Helper to generate random token ---
+function generateAuthToken(length = 32) {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+  let token = ""
+  for (let i = 0; i < length; i++) {
+    token += chars.charAt(Math.floor(Math.random() * chars.length))
+  }
+  return token
+}
+
+// --- Get or create token for a username ---
+function getUsernameAuthorization(username: string) {
+  const key = `username_auth_${username}`
+  let token = localStorage.getItem(key)
+  if (!token) {
+    token = generateAuthToken(32)
+    localStorage.setItem(key, token)
+  }
+  return token
+}
