@@ -58,6 +58,7 @@ export default function PlayPage() {
   const [game, setGame] = useState<ChessGame | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [history, setHistory] = useState<EventPieceMoved[]>([])
+  const [userSide, setUserSide] = useState<"WHITE" | "BLACK" | "BOTH" | null>(null); // NEW
 
   function showToast(message: string, type: Toast["type"] = "info") {
 
@@ -87,49 +88,49 @@ export default function PlayPage() {
 
 
   function mergeGame(update: any) {
-
     setGame((prev: any) => {
-
-      if (!prev) return update
+      if (!prev) return update;
 
       const next = {
         ...prev,
         ...update,
         request: { ...prev.request, ...update.request },
-        state: { ...prev.state, ...update.state }
+        state: { ...prev.state, ...update.state },
+      };
+
+      const myUID = localStorage.getItem("client_uid");
+      const players = next?.state?.player;
+
+      let role: "WHITE" | "BLACK" | "BOTH" | null = null;
+      if (players["BLACK"]?.client_uid === myUID && players["WHITE"]?.client_uid === myUID) {
+        role = "BOTH";
+      } else if (players["WHITE"]?.client_uid === myUID) {
+        role = "WHITE";
+      } else if (players["BLACK"]?.client_uid === myUID) {
+        role = "BLACK";
       }
 
-      const myUID = localStorage.getItem("client_uid")
+      setUserSide(role); // UPDATE userSide live
 
-      const players = next?.state?.player
-
-      let role = null
-
-      if (players["WHITE"]?.client_uid === myUID) role = "WHITE"
-      if (players["BLACK"]?.client_uid === myUID) role = "BLACK"
-
-      // game start notification
       if (
         prev?.state?.status !== "PLAYING" &&
         next?.state?.status === "PLAYING"
       ) {
-        showToast("Game started! ♟️")
+        showToast("Game started! ♟️");
       }
 
-      // turn notification
       if (
         role &&
         prev?.state?.current_turn !== role &&
         next?.state?.current_turn === role
       ) {
-        showToast("Your turn!")
+        showToast("Your turn!");
       }
 
-      return next
-
-    })
-
+      return next;
+    });
   }
+
 
 
   async function loadGame(gameId: string) {
@@ -142,6 +143,17 @@ export default function PlayPage() {
 
     if (json.success?.length) {
       setGame(json.success[0])
+
+      // detect user side
+      const myUID = localStorage.getItem("client_uid");
+      const players = json.success[0]?.state?.player;
+      if (players) {
+        if (players["WHITE"]?.client_uid === myUID) setUserSide("WHITE");
+        else if (players["BLACK"]?.client_uid === myUID) setUserSide("BLACK");
+        else setUserSide(null);
+      } else {
+        setUserSide(null);
+      }
     }
 
   }
@@ -299,6 +311,7 @@ export default function PlayPage() {
               <ChessBoard
                 boardState={game?.state?.board_state}
                 onMove={(from, to) => sendMove(from, to)}
+                userSide={userSide} // PASS userSide
               />
             </div>
           </div>
@@ -455,16 +468,16 @@ export default function PlayPage() {
       </div>
 
       {/* Toast */}
-      {
-        toast && (
-          <div className={`fixed bottom-6 right-6 text-white text-sm px-4 py-2 rounded shadow-lg animate-fade-in
-      ${toast.type === "error" ? "bg-red-600" : toast.type === "success" ? "bg-green-600" : "bg-blue-600"}`}>
-            {toast.message}
-          </div>
-        )
-      }
-    </div >
-  )
+      {toast && (
+        <div
+          className={`fixed bottom-6 right-6 text-white text-sm px-4 py-2 rounded shadow-lg animate-fade-in
+          ${toast.type === "error" ? "bg-red-600" : toast.type === "success" ? "bg-green-600" : "bg-blue-600"}`}
+        >
+          {toast.message}
+        </div>
+      )}
+    </div>
+  );
 
 }
 
@@ -476,8 +489,14 @@ function getPlayerRole(game: any) {
 
   const players = game.state.player
 
-  if (players["WHITE"]?.client_uid === myUID) return "WHITE"
-  if (players["BLACK"]?.client_uid === myUID) return "BLACK"
+  if (players["WHITE"]?.client_uid === myUID && players["BLACK"]?.client_uid === myUID) {
+    return "BOTH"
+  }
+  if (players["WHITE"]?.client_uid === myUID) {
+    return "WHITE"
+  } else if (players["BLACK"]?.client_uid === myUID) {
+    return "BLACK"
+  }
 
   return null
 

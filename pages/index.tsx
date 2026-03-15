@@ -112,6 +112,20 @@ export default function Lobby() {
         })
     }
 
+    const [myUID, setMyUID] = useState<string | null>(null);
+
+    useEffect(() => {
+        setMyUID(localStorage.getItem("client_uid"));
+    }, []);
+
+    function isParticipating(game: Game, uid: string | null) {
+        if (!uid) return false;
+        const white = game.state?.player?.WHITE?.client_uid;
+        const black = game.state?.player?.BLACK?.client_uid;
+        const host = game.request?.player?.client_uid;
+        return uid === white || uid === black || uid === host;
+    }
+
     gameList.sort((a, b) => {
         const statusPriority = (status?: string) => {
             switch (status) {
@@ -183,6 +197,7 @@ export default function Lobby() {
                                 if (game.state?.player) {
                                     const white = game.state.player.WHITE
                                     const black = game.state.player.BLACK
+                                    if (white && black && white.username === host && black.username === host) opponent = white.username
                                     if (white && white.username !== host) opponent = white.username
                                     if (black && black.username !== host) opponent = black.username
                                 }
@@ -204,12 +219,20 @@ export default function Lobby() {
                                         <td className="px-3 py-2 text-right">
                                             <Link
                                                 href={`/play?id=${game.id}`}
-                                                className={`px-2.5 py-1 rounded text-xs font-medium ${status === "PLAYING" ? "bg-blue-600 hover:bg-blue-500 text-white" : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+                                                className={`px-2.5 py-1 rounded text-xs font-medium ${status === "WAITING_FOR_OTHER_PLAYER"
+                                                    ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+                                                    : status === "PLAYING"
+                                                        ? (myUID && isParticipating(game, myUID)
+                                                            ? "bg-green-600 hover:bg-green-500 text-white" // you can use green for "Play"
+                                                            : "bg-blue-600 hover:bg-blue-500 text-white") // else "Watch"
+                                                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
                                                     }`}
                                             >
-                                                {status === "WAITING_FOR_OTHER_PLAYER" ? "View" : status === "PLAYING" ? "Watch" : "View"}
-                                            </Link>
-                                        </td>
+                                                {status === "WAITING_FOR_OTHER_PLAYER" ? "View"
+                                                    : status === "PLAYING"
+                                                        ? (myUID && isParticipating(game, myUID) ? "Play" : "Watch")
+                                                        : "View"}
+                                            </Link>                                        </td>
                                     </tr>
                                 )
                             })}
