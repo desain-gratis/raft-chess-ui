@@ -148,44 +148,161 @@ export default function Lobby() {
 
     return (
         <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm">
-            <div className="max-w-5xl mx-auto px-4 py-6">
+            <div className="max-w-5xl mx-auto px-4 py-5">
 
                 {/* HEADER */}
-                <div className="flex items-center justify-between mb-4">
-                    <h1 className="text-lg font-semibold tracking-tight text-blue-400">Chess Lobby</h1>
-                    <Link href="/create" className="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-xs font-medium">Create Game</Link>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                    <h1 className="text-xl font-semibold tracking-tight text-blue-400">
+                        Chess Lobby
+                    </h1>
+
+                    <Link
+                        href="/create"
+                        className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-center"
+                    >
+                        Create Game
+                    </Link>
                 </div>
 
+
                 {/* SEARCH + FILTER */}
-                <div className="flex gap-2 mb-3 items-center">
+                <div className="flex flex-col sm:flex-row gap-2 mb-4">
+
                     <input
                         placeholder="Search username / uid / game"
                         value={query}
                         onChange={e => setQuery(e.target.value)}
-                        className="flex-1 bg-neutral-900 border border-neutral-800 rounded-md px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        className="flex-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
                     />
-                    <select
-                        value={statusFilter}
-                        onChange={e => setStatusFilter(e.target.value)}
-                        className="bg-neutral-900 border border-neutral-800 rounded-md px-2 py-1.5 text-xs"
-                    >
-                        <option value="ALL">All</option>
-                        <option value="WAITING_FOR_OTHER_PLAYER">Waiting</option>
-                        <option value="PLAYING">Playing</option>
-                        <option value="FINISHED">Finished</option>
-                        <option value="CANCELED">Canceled</option>
-                        <option value="EXPIRED">Expired</option>
-                    </select>
-                    <label className="flex items-center gap-1 text-xs">
-                        <input type="checkbox" checked={showMyGames} onChange={e => setShowMyGames(e.target.checked)} />
-                        Show My Games
-                    </label>
+
+                    <div className="flex gap-2">
+
+                        <select
+                            value={statusFilter}
+                            onChange={e => setStatusFilter(e.target.value)}
+                            className="bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm"
+                        >
+                            <option value="ALL">All</option>
+                            <option value="WAITING_FOR_OTHER_PLAYER">Waiting</option>
+                            <option value="PLAYING">Playing</option>
+                            <option value="FINISHED">Finished</option>
+                            <option value="CANCELED">Canceled</option>
+                            <option value="EXPIRED">Expired</option>
+                        </select>
+
+                        <label className="flex items-center gap-2 text-sm px-2">
+                            <input
+                                type="checkbox"
+                                checked={showMyGames}
+                                onChange={e => setShowMyGames(e.target.checked)}
+                            />
+                            My Games
+                        </label>
+
+                    </div>
                 </div>
 
-                {/* TABLE */}
-                <div className="overflow-hidden border border-neutral-800 rounded-md">
-                    <table className="w-full text-xs">
-                        <thead className="bg-neutral-900 text-neutral-400 uppercase tracking-wide">
+
+                {/* MOBILE CARD VIEW */}
+                <div className="space-y-3 md:hidden">
+
+                    {gameList.map(game => {
+
+                        const host = game.request?.player?.username || "Anonymous"
+
+                        let opponent = "-"
+                        if (game.state?.player) {
+                            const white = game.state.player.WHITE
+                            const black = game.state.player.BLACK
+
+                            if (white && black && white.username === host && black.username === host)
+                                opponent = white.username
+
+                            if (white && white.username !== host)
+                                opponent = white.username
+
+                            if (black && black.username !== host)
+                                opponent = black.username
+                        }
+
+                        const status = game.state?.status
+
+                        let statusColor = "text-neutral-400"
+                        if (status === "WAITING_FOR_OTHER_PLAYER") statusColor = "text-amber-400"
+                        if (status === "PLAYING") statusColor = "text-blue-400"
+                        if (status === "FINISHED") statusColor = "text-emerald-400"
+                        if (status === "CANCELED") statusColor = "text-red-400"
+                        if (status === "EXPIRED") statusColor = "text-neutral-500"
+
+                        const isPlayer = myUID && isParticipating(game, myUID)
+
+                        const buttonStyle =
+                            status === "WAITING_FOR_OTHER_PLAYER"
+                                ? "bg-neutral-800"
+                                : status === "PLAYING"
+                                    ? isPlayer
+                                        ? "bg-green-600"
+                                        : "bg-blue-600"
+                                    : "bg-neutral-800"
+
+                        const buttonLabel =
+                            status === "WAITING_FOR_OTHER_PLAYER"
+                                ? "View"
+                                : status === "PLAYING"
+                                    ? isPlayer
+                                        ? "Play"
+                                        : "Watch"
+                                    : "View"
+
+                        return (
+
+                            <div
+                                key={game.id}
+                                className="border border-neutral-800 rounded-lg p-3 bg-neutral-900 space-y-2"
+                            >
+
+                                <div className="flex justify-between items-center">
+                                    <span className="font-mono text-neutral-300">
+                                        #{game.id}
+                                    </span>
+
+                                    <span className={`text-xs font-medium ${statusColor}`}>
+                                        {status?.replaceAll("_", " ").toLowerCase()}
+                                    </span>
+                                </div>
+
+                                <div className="text-sm flex justify-between">
+                                    <span className="text-neutral-400">Host</span>
+                                    <span>{host}</span>
+                                </div>
+
+                                <div className="text-sm flex justify-between">
+                                    <span className="text-neutral-400">Opponent</span>
+                                    <span>{opponent}</span>
+                                </div>
+
+                                <Link
+                                    href={`/play?id=${game.id}`}
+                                    className={`block text-center mt-2 px-3 py-2 rounded-md text-sm font-medium text-white ${buttonStyle}`}
+                                >
+                                    {buttonLabel}
+                                </Link>
+
+                            </div>
+
+                        )
+
+                    })}
+
+                </div>
+
+
+                {/* DESKTOP TABLE */}
+                <div className="hidden md:block overflow-hidden border border-neutral-800 rounded-md">
+
+                    <table className="w-full text-sm">
+
+                        <thead className="bg-neutral-900 text-neutral-400 uppercase tracking-wide text-xs">
                             <tr>
                                 <th className="text-left px-3 py-2">Game</th>
                                 <th className="text-left px-3 py-2">Host</th>
@@ -194,19 +311,32 @@ export default function Lobby() {
                                 <th className="text-right px-3 py-2"></th>
                             </tr>
                         </thead>
+
                         <tbody>
+
                             {gameList.map(game => {
+
                                 const host = game.request?.player?.username || "Anonymous"
+
                                 let opponent = "-"
                                 if (game.state?.player) {
+
                                     const white = game.state.player.WHITE
                                     const black = game.state.player.BLACK
-                                    if (white && black && white.username === host && black.username === host) opponent = white.username
-                                    if (white && white.username !== host) opponent = white.username
-                                    if (black && black.username !== host) opponent = black.username
+
+                                    if (white && black && white.username === host && black.username === host)
+                                        opponent = white.username
+
+                                    if (white && white.username !== host)
+                                        opponent = white.username
+
+                                    if (black && black.username !== host)
+                                        opponent = black.username
+
                                 }
 
                                 const status = game.state?.status
+
                                 let statusColor = "text-neutral-400"
                                 if (status === "WAITING_FOR_OTHER_PLAYER") statusColor = "text-amber-400"
                                 if (status === "PLAYING") statusColor = "text-blue-400"
@@ -215,33 +345,58 @@ export default function Lobby() {
                                 if (status === "EXPIRED") statusColor = "text-neutral-500"
 
                                 return (
+
                                     <tr key={game.id} className="border-t border-neutral-900 hover:bg-neutral-900/60">
-                                        <td className="px-3 py-2 font-mono text-neutral-300">#{game.id}</td>
-                                        <td className="px-3 py-2">{host}</td>
-                                        <td className="px-3 py-2">{opponent}</td>
-                                        <td className={`px-3 py-2 font-medium ${statusColor}`}>{status?.replaceAll("_", " ").toLowerCase()}</td>
+
+                                        <td className="px-3 py-2 font-mono text-neutral-300">
+                                            #{game.id}
+                                        </td>
+
+                                        <td className="px-3 py-2">
+                                            {host}
+                                        </td>
+
+                                        <td className="px-3 py-2">
+                                            {opponent}
+                                        </td>
+
+                                        <td className={`px-3 py-2 font-medium ${statusColor}`}>
+                                            {status?.replaceAll("_", " ").toLowerCase()}
+                                        </td>
+
                                         <td className="px-3 py-2 text-right">
+
                                             <Link
                                                 href={`/play?id=${game.id}`}
-                                                className={`px-2.5 py-1 rounded text-xs font-medium ${status === "WAITING_FOR_OTHER_PLAYER"
-                                                    ? "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
-                                                    : status === "PLAYING"
-                                                        ? (myUID && isParticipating(game, myUID)
-                                                            ? "bg-green-600 hover:bg-green-500 text-white" // you can use green for "Play"
-                                                            : "bg-blue-600 hover:bg-blue-500 text-white") // else "Watch"
-                                                        : "bg-neutral-800 hover:bg-neutral-700 text-neutral-200"
+                                                className={`px-3 py-1.5 rounded text-xs font-medium
+${status === "WAITING_FOR_OTHER_PLAYER"
+                                                        ? "bg-neutral-800 hover:bg-neutral-700"
+                                                        : status === "PLAYING"
+                                                            ? (myUID && isParticipating(game, myUID)
+                                                                ? "bg-green-600 hover:bg-green-500"
+                                                                : "bg-blue-600 hover:bg-blue-500")
+                                                            : "bg-neutral-800 hover:bg-neutral-700"
                                                     }`}
                                             >
-                                                {status === "WAITING_FOR_OTHER_PLAYER" ? "View"
+
+                                                {status === "WAITING_FOR_OTHER_PLAYER"
+                                                    ? "View"
                                                     : status === "PLAYING"
                                                         ? (myUID && isParticipating(game, myUID) ? "Play" : "Watch")
                                                         : "View"}
-                                            </Link>                                        </td>
+
+                                            </Link>
+
+                                        </td>
                                     </tr>
+
                                 )
+
                             })}
+
                         </tbody>
                     </table>
+
                 </div>
 
             </div>

@@ -106,40 +106,75 @@ export default function CreateGamePage() {
     }
 
     return (
-        <div className="min-h-screen bg-neutral-900 flex items-center justify-center px-4">
-            <div className="w-full max-w-md bg-neutral-800 rounded-xl shadow-lg p-6">
-                <h1 className="text-xl font-semibold text-white mb-6">Create New Game</h1>
+        <div className="min-h-screen bg-neutral-950 text-neutral-200">
 
-                <form onSubmit={createGame} className="space-y-5">
-                    <div>
-                        <label className="block text-sm text-neutral-300 mb-1">Username</label>
-                        <input
-                            value={username}
-                            onChange={(e) => setUsername(e.target.value)}
-                            required
-                            className="w-full px-3 py-2 rounded-lg bg-neutral-700 text-white border border-neutral-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        />
-                    </div>
+            <div className="max-w-md mx-auto px-4 py-6">
 
-                    <div>
-                        <label className="block text-sm text-neutral-300 mb-1">Your Side</label>
-                        <select
-                            value={side}
-                            onChange={(e) => setSide(e.target.value)}
-                            className="w-full px-3 py-2 rounded-lg bg-neutral-700 text-white border border-neutral-600 focus:outline-none focus:ring-2 focus:ring-green-500"
-                        >
-                            <option value="WHITE">WHITE</option>
-                            <option value="BLACK">BLACK</option>
-                        </select>
-                    </div>
+                {/* HEADER */}
+                <div className="flex items-center justify-between mb-6">
+                    <h1 className="text-xl font-semibold text-blue-400">
+                        Create Game
+                    </h1>
 
                     <button
-                        type="submit"
-                        className="w-full bg-green-600 hover:bg-green-700 transition rounded-lg py-2 font-medium text-white"
+                        onClick={() => router.push("/")}
+                        className="text-sm px-3 py-1.5 rounded border border-neutral-700 hover:bg-neutral-800"
                     >
-                        Create Game
+                        Lobby
                     </button>
-                </form>
+                </div>
+
+
+                {/* FORM CARD */}
+                <div className="bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl p-5 sm:p-6">
+
+                    <form onSubmit={createGame} className="space-y-5">
+
+                        {/* USERNAME */}
+                        <div>
+                            <label className="block text-sm text-neutral-400 mb-1">
+                                Username
+                            </label>
+
+                            <input
+                                value={username}
+                                onChange={(e) => setUsername(e.target.value)}
+                                required
+                                placeholder="Enter your username"
+                                className="w-full px-3 py-2.5 rounded-lg bg-neutral-800 text-white border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            />
+                        </div>
+
+
+                        {/* SIDE */}
+                        <div>
+                            <label className="block text-sm text-neutral-400 mb-1">
+                                Your Side
+                            </label>
+
+                            <select
+                                value={side}
+                                onChange={(e) => setSide(e.target.value)}
+                                className="w-full px-3 py-2.5 rounded-lg bg-neutral-800 text-white border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                            >
+                                <option value="WHITE">White</option>
+                                <option value="BLACK">Black</option>
+                            </select>
+                        </div>
+
+
+                        {/* CREATE BUTTON */}
+                        <button
+                            type="submit"
+                            className="w-full bg-green-600 hover:bg-green-700 active:scale-[0.99] transition rounded-lg py-2.5 font-medium text-white"
+                        >
+                            Create Game
+                        </button>
+
+                    </form>
+
+                </div>
+
             </div>
         </div>
     )
