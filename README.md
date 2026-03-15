@@ -1,4 +1,4 @@
-# deployd-ui
+# raft chess ui
 
 Next.js + TypeScript + Tailwind CSS single-page-style app (client-side only pages) scaffolded for static export.
 
