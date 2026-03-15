@@ -4,6 +4,7 @@ import React from "react"
 import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 import ChessBoard from "../components/ChessBoard"
+import ChessPiece from "../components/ChessPieces"
 
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
@@ -30,12 +31,22 @@ type Toast = {
 }
 
 type EventPieceMoved = {
-  game: any
+  namespace: string
+  game_id: string
+  id: string
+  created_at: string
   from: string
   to: string
-  by: { name?: string; client_uid?: string }
-  at: string
-  sequence: number
+  player: {
+    username?: string
+    client_uid: string
+    username_auth?: string
+  }
+  current_sequence: number
+  piece_from: string
+  piece_to: string | null
+  side: "WHITE" | "BLACK"
+  url?: string
 }
 
 
@@ -44,7 +55,7 @@ export default function PlayPage() {
   const router = useRouter()
   const { id } = router.query
 
-  const [game, setGame] = useState<any>(null)
+  const [game, setGame] = useState<ChessGame | null>(null)
   const [toast, setToast] = useState<Toast | null>(null)
   const [history, setHistory] = useState<EventPieceMoved[]>([])
 
@@ -60,7 +71,7 @@ export default function PlayPage() {
 
   async function loadHistory(gameId: string) {
     try {
-      const res = await fetch(`${getApiBase()}/history?id=${gameId}`, {
+      const res = await fetch(`${getApiBase()}/history?game_id=${gameId}`, {
         headers: { "X-Namespace": NAMESPACE },
       })
       const json = await res.json()
@@ -139,7 +150,7 @@ export default function PlayPage() {
   async function addMoveToHistory(move: EventPieceMoved) {
     setHistory((prev) => {
       // Check if this sequence already exists
-      if (prev.some((m) => m.sequence === move.sequence)) return prev
+      if (prev.some((m) => m.current_sequence === move.current_sequence)) return prev
       return [...prev, move]
     })
   }
@@ -178,7 +189,7 @@ export default function PlayPage() {
         client_uid,
         authorization
       },
-      current_sequence: game.state.sequence
+      current_sequence: game?.state.sequence
     }
 
     try {
@@ -267,79 +278,78 @@ export default function PlayPage() {
   }, [id])
 
   return (
-
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm">
-
-      <div className="max-w-5xl mx-auto px-4 py-6">
-
-        <div className="flex justify-between items-center mb-5">
-
-          <h1 className="text-blue-400 font-semibold">
-            Game #{id}
-          </h1>
-
+    <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm font-sans">
+      <div className="max-w-6xl mx-auto px-6 py-6">
+        {/* Header */}
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-blue-400">Game #{id}</h1>
           <button
             onClick={() => router.push("/")}
-            className="px-2 py-1 text-xs rounded border border-neutral-700 hover:bg-neutral-800"
+            className="px-3 py-1 text-sm rounded border border-neutral-700 hover:bg-neutral-800 transition"
           >
             Lobby
           </button>
-
         </div>
 
-        <div className="grid grid-cols-[auto_220px] gap-4 items-start">
-
-          {/* Board */}
-
+        {/* Main Grid */}
+        <div className="grid grid-cols-[1fr_280px] gap-6 items-start">
+          {/* Chess Board */}
           <div className="flex justify-center">
-
-            <div className="w-[340px]     cursor-grab
-    active:cursor-grabbing
-    select-none" onDragOver={(e) => e.preventDefault()}>
-
+            <div className="w-[300px] sm:w-[380px] cursor-grab active:cursor-grabbing select-none shadow-2xl rounded-lg overflow-hidden">
               <ChessBoard
                 boardState={game?.state?.board_state}
                 onMove={(from, to) => sendMove(from, to)}
               />
-
             </div>
-
           </div>
 
           {/* Sidebar */}
-
-          <div className="space-y-3">
-
-            <div className="border border-neutral-800 rounded bg-neutral-900 p-3">
-
-              <div className="text-xs text-neutral-400 mb-2">
+          <div className="flex flex-col gap-4">
+            {/* Game Info */}
+            <div className="border border-neutral-800 rounded bg-neutral-900 p-4 space-y-3">
+              <div className="text-xs text-neutral-400 font-semibold mb-2">
                 Game Info
               </div>
 
-              <div className="text-xs space-y-1">
+              {game && (<div className="flex justify-between">
+                <span>Status</span>
+                <span className={`font-bold ${statusColors[game.state.status] || "text-white"}`}>
+                  {game?.state.status.replaceAll("_", " ")}
+                </span>
+              </div>)
+              }
 
-                <div className="flex justify-between">
-                  <span>Status</span>
-                  <span>{game?.state?.status ?? "-"}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Turn</span>
-                  <span>{game?.state?.current_turn ?? "-"}</span>
-                </div>
-
-                <div className="flex justify-between">
-                  <span>Move #</span>
-                  <span>{game?.state?.fillmove_number ?? "-"}</span>
-                </div>
-
+              <div className="flex justify-between">
+                <span>Turn</span>
+                <span>{game?.state.current_turn || "-"}</span>
               </div>
 
+              <div className="flex justify-between">
+                <span>Move #</span>
+                <span>{game?.state.fillmove_number}</span>
+              </div>
+
+              <div className="flex justify-between">
+                <span>Host</span>
+                <span className="font-bold text-blue-400">{game?.request.player.username}</span>
+              </div>
+
+
+              {game?.state.status === "PLAYING" && game.state.player && (
+                <div className="space-y-1">
+                  <div className="text-xs">
+                    Players:
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-white font-bold">{game.state.player.WHITE?.username || "?"} (White)</span>
+                    <span className="text-yellow-400 font-bold">{game.state.player.BLACK?.username || "?"} (Black)</span>
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* JOIN CTA */}
-
-            {game?.state?.status === "WAITING_FOR_OTHER_PLAYER" && (
+            {/* Join / Play */}
+            {game?.state.status === "WAITING_FOR_OTHER_PLAYER" && (
               <div className="space-y-2">
                 {!localStorage.getItem("username") ? (
                   <form
@@ -358,17 +368,19 @@ export default function PlayPage() {
                     }}
                     className="space-y-2"
                   >
+                    <label className="block text-sm text-neutral-300">Enter your username:</label>
                     <input
                       type="text"
                       name="username"
-                      placeholder="Enter your username"
-                      className="w-full px-2 py-1 text-sm rounded border border-neutral-700 bg-neutral-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      placeholder="Your username"
+                      className="w-full px-3 py-2 rounded border border-neutral-700 bg-neutral-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      autoFocus
                     />
                     <button
                       type="submit"
                       className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
                     >
-                      Join / Play
+                      Join as this username
                     </button>
                   </form>
                 ) : (
@@ -376,82 +388,61 @@ export default function PlayPage() {
                     onClick={joinGame}
                     className="w-full bg-green-600 hover:bg-green-700 text-white text-sm py-2 rounded"
                   >
-                    Join / Play
+                    Join as {localStorage.getItem("username")}
                   </button>
                 )}
               </div>
             )}
 
+            {/* Player Turn Info */}
             {game?.state?.status === "PLAYING" && (() => {
-
               const role = getPlayerRole(game)
               const myTurn = isMyTurn(game, role)
-
-              if (!role) {
-
-                return (
-                  <div className="text-xs text-neutral-400">
-                    Spectating
-                  </div>
-                )
-
-              }
+              if (!role) return <div className="text-xs text-neutral-400">Spectating</div>
 
               return (
-
-                <div className="space-y-2">
-
-                  <div className="text-xs text-green-400">
-                    You are playing ({role})
-                  </div>
-
+                <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 shadow-inner text-center space-y-2">
+                  <div className="text-xs font-semibold text-green-400">You are playing ({role})</div>
                   {myTurn ? (
-
-                    <div className="bg-blue-600 text-white text-xs px-3 py-2 rounded text-center">
-                      Your move ♟
-                    </div>
-
+                    <div className="bg-blue-600 text-white text-xs py-1 rounded">Your move ♟</div>
                   ) : (
-
-                    <div className="bg-neutral-800 text-neutral-300 text-xs px-3 py-2 rounded text-center">
-                      Waiting for opponent
-                    </div>
-
+                    <div className="bg-neutral-800 text-neutral-300 text-xs py-1 rounded">Waiting for opponent</div>
                   )}
-
                 </div>
-
               )
-
             })()}
 
-            <div className="border border-neutral-800 rounded bg-neutral-900 p-3 max-h-60 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900">
-              <div className="text-xs text-neutral-400 mb-2">Move History</div>
-              <ul className="text-xs space-y-1">
+            {/* Move History */}
+            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-neutral-900">
+              <h2 className="text-xs text-neutral-400 font-semibold mb-2">Move History</h2>
+              <ul className="space-y-1">
                 {(() => {
                   let lastDate: string | null = null
-
                   return history
-                    .sort((a, b) => a.sequence - b.sequence)
-                    .map((move) => {
-                      const moveDate = new Date(move.at)
+                    .sort((a, b) => a.current_sequence - b.current_sequence)
+                    .map(move => {
+                      const moveDate = new Date(move.created_at)
                       const localDateStr = moveDate.toLocaleDateString()
                       const timeStr = moveDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-
                       const dayChanged = lastDate && lastDate !== localDateStr
                       lastDate = localDateStr
+                      const usernameColor = move.side === "WHITE" ? "text-white" : "text-yellow-400"
 
                       return (
-                        <React.Fragment key={move.sequence}>
-                          {dayChanged && (
-                            <li className="text-center text-neutral-500">----</li>
-                          )}
-                          <li className="flex justify-between">
-                            <span>{move.by?.name || "Unknown"}:</span>
-                            <span>
-                              {move.from} → {move.to}{" "}
-                              <span className="text-neutral-400 text-[10px]">{`(${timeStr})`}</span>
-                            </span>
+                        <React.Fragment key={move.current_sequence}>
+                          {dayChanged && <li className="text-center text-neutral-500 font-bold">----</li>}
+                          <li className="flex items-center justify-between text-xs hover:bg-neutral-800 rounded px-1 py-0.5 transition">
+                            <div className="flex items-center gap-1">
+                              <span className="text-neutral-400">{move.current_sequence}.</span>
+                              <span className={`font-bold ${usernameColor}`}>{move.player?.username || "Unknown"}</span>
+                              <span className="text-neutral-400 ml-1">({move.side})</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <ChessPiece piece={move.piece_from as any} />
+                              <span className="mx-1">{move.from} → {move.to}</span>
+                              {move.piece_to && <ChessPiece piece={move.piece_to as any} />}
+                              <span className="text-neutral-400 text-[10px] ml-2">({timeStr})</span>
+                            </div>
                           </li>
                         </React.Fragment>
                       )
@@ -459,36 +450,20 @@ export default function PlayPage() {
                 })()}
               </ul>
             </div>
-
           </div>
         </div>
-
-
       </div>
 
-      {toast && (
-        <div
-          className={`
-      fixed bottom-6 right-6
-      text-white text-sm
-      px-4 py-2
-      rounded
-      shadow-lg
-      animate-fade-in
-      ${toast.type === "error"
-              ? "bg-red-600"
-              : toast.type === "success"
-                ? "bg-green-600"
-                : "bg-blue-600"
-            }
-    `}
-        >
-          {toast.message}
-        </div>
-      )}
-
-    </div>
-
+      {/* Toast */}
+      {
+        toast && (
+          <div className={`fixed bottom-6 right-6 text-white text-sm px-4 py-2 rounded shadow-lg animate-fade-in
+      ${toast.type === "error" ? "bg-red-600" : toast.type === "success" ? "bg-green-600" : "bg-blue-600"}`}>
+            {toast.message}
+          </div>
+        )
+      }
+    </div >
   )
 
 }
@@ -537,4 +512,62 @@ function getUsernameAuthorization(username: string) {
     localStorage.setItem(key, token)
   }
   return token
+}
+
+const statusColors: Record<Status, string> = {
+  WAITING_FOR_OTHER_PLAYER: "text-yellow-400",
+  EXPIRED: "text-red-500",
+  CANCELED: "text-red-500",
+  PLAYING: "text-green-400",
+  FINISHED: "text-neutral-400",
+}
+
+function getOpponent(game: ChessGame, myUID: string): Player | null {
+  const players = game.state.player
+  if (!players) return null
+
+  return Object.values(players).find(p => p.client_uid !== myUID) || null
+}
+
+export type Side = "WHITE" | "BLACK"
+
+export type Status =
+  | "WAITING_FOR_OTHER_PLAYER"
+  | "EXPIRED"
+  | "CANCELED"
+  | "PLAYING"
+  | "FINISHED"
+
+export type Player = {
+  username: string
+  client_uid: string
+}
+
+export type GameRequest = {
+  namespace: string
+  id: string
+  created_at: string
+  player: Player // host / creator
+  your_side: Side
+}
+
+export type GameState = {
+  status: Status
+  sequence: number
+  halfmove_clock: number
+  fillmove_number: number
+  castling_rights: number
+  board_state: string
+  current_turn: Side | ""
+  player: Partial<Record<Side, Player>> | null // both players when joined
+  started_at: string | null
+}
+
+export type ChessGame = {
+  id: string
+  namespace: string
+  request: GameRequest
+  state: GameState
+  created_at: string
+  url: string
 }

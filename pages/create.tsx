@@ -9,6 +9,13 @@ function randomID() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36)
 }
 
+function getApiBase() {
+    if (typeof window === "undefined") return `http://${API_HOST}`; // fallback for SSR
+    const protocol = window.location.protocol === "https:" ? "https" : "http";
+    return `${protocol}://${API_HOST}`;
+}
+
+
 // --- generate per-username token ---
 function generateAuthToken(length = 32) {
     const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
@@ -81,7 +88,7 @@ export default function CreateGamePage() {
             created_at: new Date().toISOString(),
         }
 
-        const res = await fetch(`${API_HOST}/create`, {
+        const res = await fetch(`${getApiBase()}/create`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
