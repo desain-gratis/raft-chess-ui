@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/router"
 
-const API = "http://localhost:9411/create"
+const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
 
 function randomID() {
     return Math.random().toString(36).slice(2) + Date.now().toString(36)
@@ -81,7 +81,7 @@ export default function CreateGamePage() {
             created_at: new Date().toISOString(),
         }
 
-        const res = await fetch(API, {
+        const res = await fetch(`${API_HOST}/create`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload),
