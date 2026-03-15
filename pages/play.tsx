@@ -190,8 +190,7 @@ export default function PlayPage() {
     ws.onclose = () => setTimeout(() => connectWS(gameId), 2000);
   }
 
-  async function sendMove(from: string, to: string) {
-
+  async function sendMove(from: string, to: string, revert: () => void) {
     const client_uid = localStorage.getItem("client_uid")
     const authorization = localStorage.getItem("authorization")
 
@@ -229,8 +228,7 @@ export default function PlayPage() {
 
         showToast(message, "error")
 
-        // optimistic lock fix
-        loadGame(String(id))
+        revert()
 
         return
       }
@@ -319,7 +317,7 @@ export default function PlayPage() {
             <div className="w-full max-w-[420px] cursor-grab active:cursor-grabbing select-none shadow-2xl rounded-lg overflow-hidden">
               <ChessBoard
                 boardState={game?.state?.board_state}
-                onMove={(from, to) => sendMove(from, to)}
+                onMove={(from, to, revert) => sendMove(from, to, revert)}
                 userSide={userSide}
               />
             </div>

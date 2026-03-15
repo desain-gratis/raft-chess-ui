@@ -2,15 +2,14 @@
 
 /* eslint-disable no-unused-vars */
 
-import React, { useMemo, useState, useRef } from "react";
-import { AnimatePresence, motion } from "framer-motion";
+import React, { useMemo, useState, useRef, useEffect } from "react";
 import ChessPiece from "./ChessPieces";
 
 type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "k";
 
 type Props = {
     boardState?: string;
-    onMove?: (from: string, to: string) => void;
+    onMove?: (from: string, to: string, revert: () => void) => void;
     userSide?: "WHITE" | "BLACK" | "BOTH" | null;
 };
 
@@ -20,31 +19,58 @@ function squareName(r: number, c: number) {
     return files[c] + (8 - r);
 }
 
+function squareToIndex(square: string) {
+    const file = files.indexOf(square[0]);
+    const rank = 8 - Number(square[1]);
+    return { r: rank, c: file };
+}
+
 function decodeBoard(base64?: string) {
     if (!base64) return Array(8).fill(null).map(() => Array(8).fill("\0"));
+
     const bin = atob(base64);
     const board: string[][] = [];
+
     for (let r = 0; r < 8; r++) {
         board.push([...bin].slice(r * 8, r * 8 + 8));
     }
+
     return board;
 }
 
 export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: Props) {
 
-    let board = useMemo(() => decodeBoard(boardState), [boardState]);
-
     const side = userSide === "BLACK" ? "BLACK" : "WHITE";
 
-    if (side === "BLACK") {
-        board = [...board].reverse().map(r => [...r].reverse());
-    }
-
     const boardRef = useRef<HTMLDivElement | null>(null);
+
+    const [localBoard, setLocalBoard] = useState<string[][]>(() => decodeBoard(boardState));
 
     const [dragged, setDragged] = useState<{ piece: Piece, from: string } | null>(null);
 
     const [pointer, setPointer] = useState({ x: 0, y: 0 });
+
+    const [squareSize, setSquareSize] = useState(60);
+
+    useEffect(() => {
+        setLocalBoard(decodeBoard(boardState));
+    }, [boardState]);
+
+    useEffect(() => {
+
+        function updateSize() {
+            if (!boardRef.current) return;
+            const rect = boardRef.current.getBoundingClientRect();
+            setSquareSize(rect.width / 8);
+        }
+
+        updateSize();
+
+        window.addEventListener("resize", updateSize);
+
+        return () => window.removeEventListener("resize", updateSize);
+
+    }, []);
 
     function squareFromPointer(px: number, py: number) {
 
@@ -82,7 +108,6 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
         });
 
         setDragged({ piece, from: square });
-        setDragged({ piece, from: square });
     }
 
     function handlePointerMove(e: React.PointerEvent) {
@@ -93,6 +118,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
             x: e.clientX,
             y: e.clientY
         });
+
     }
 
     function handlePointerUp(e: React.PointerEvent) {
@@ -102,10 +128,36 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
         const toSquare = squareFromPointer(e.clientX, e.clientY);
 
         if (toSquare && toSquare !== dragged.from) {
-            onMove?.(dragged.from, toSquare);
+
+            const { r: fr, c: fc } = squareToIndex(dragged.from)
+            const { r: tr, c: tc } = squareToIndex(toSquare)
+
+            const prevBoard = localBoard.map(r => [...r])
+
+            setLocalBoard(prev => {
+                const next = prev.map(r => [...r])
+
+                const piece = next[fr][fc]
+                next[fr][fc] = "\0"
+                next[tr][tc] = piece
+
+                return next
+            })
+
+            const revert = () => {
+                setLocalBoard(prevBoard)
+            }
+
+            onMove?.(dragged.from, toSquare, revert)
         }
 
         setDragged(null);
+    }
+
+    let board = localBoard;
+
+    if (side === "BLACK") {
+        board = [...board].reverse().map(r => [...r].reverse());
     }
 
     return (
@@ -142,8 +194,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
                                     <div
                                         onPointerDown={(e) => handlePointerDown(e, piece as Piece, square)}
-                                        className={`w-full h-full flex items-center justify-center ${isOriginal ? "opacity-20" : ""
-                                            }`}
+                                        className={`w-full h-full flex items-center justify-center ${isOriginal ? "opacity-20" : ""}`}
                                     >
 
                                         <ChessPiece piece={piece as Piece} />
@@ -161,26 +212,28 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
             </div>
 
-            <AnimatePresence>
-                {dragged && (
-                    <div
-                        style={{
-                            position: "fixed",
-                            left: pointer.x - 16,
-                            top: pointer.y - 16,
-                            transform: "translate(-16, -16)",
-                            pointerEvents: "none",
-                            zIndex: 9999,
-                            width: 72,
-                            height: 72
-                        }}
-                    >
-                        <ChessPiece piece={dragged.piece} />
-                    </div>
-                )}
-            </AnimatePresence >
+            {dragged && (
 
-        </div >
+                <div
+                    style={{
+                        position: "fixed",
+                        left: pointer.x,
+                        top: pointer.y,
+                        transform: "translate(-50%, -50%)",
+                        pointerEvents: "none",
+                        zIndex: 9999,
+                        width: squareSize,
+                        height: squareSize
+                    }}
+                >
+
+                    <ChessPiece piece={dragged.piece} />
+
+                </div>
+
+            )}
+
+        </div>
 
     );
 
