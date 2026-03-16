@@ -70,7 +70,7 @@ export default function PlayPage() {
   useEffect(() => {
     moveSound.current = new Audio("/sounds/move.mp3")
     moveSound.current.volume = 0.6
-    captureSound.current = new Audio("/sounds/move.mp3")
+    captureSound.current = new Audio("/sounds/capture.mp3")
     captureSound.current.volume = 0.6
   }, [])
 
@@ -195,11 +195,10 @@ export default function PlayPage() {
         addMoveToHistory(msg.value)
 
         const capture = msg.value.piece_to !== null
-        const sound = capture ? captureSound : moveSound
 
-        if (sound.current) {
-          sound.current.currentTime = 0
-          sound.current.play().catch(() => { })
+        if (captureSound.current && capture) {
+          captureSound.current.currentTime = 0.3
+          captureSound.current.play().catch(() => { })
         }
       }
 
@@ -224,6 +223,12 @@ export default function PlayPage() {
       },
       current_sequence: game?.state.sequence
     }
+
+    if (moveSound.current) {
+      moveSound.current.currentTime = 0.3
+      moveSound.current.play().catch(() => { })
+    }
+
 
     try {
 
