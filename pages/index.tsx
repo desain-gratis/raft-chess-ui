@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import FlexSearch from "flexsearch"
+import Credits from "../components/Credits"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411"
@@ -156,6 +157,7 @@ export default function Lobby() {
     useEffect(() => {
         loadInitialGames()
         connectWS()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     let gameList = Array.from(games.values())
@@ -167,6 +169,10 @@ export default function Lobby() {
 
     if (statusFilter !== "ALL") {
         gameList = gameList.filter(g => g.state?.status === statusFilter)
+    }
+
+    if (showMyGames) {
+        gameList = gameList.filter(isParticipating)
     }
 
     const [myUID, setMyUID] = useState<string | null>(null)
@@ -228,6 +234,39 @@ export default function Lobby() {
                         </Link>
 
                     </div>
+
+                </div>
+
+                {/* Lobby Controls */}
+
+                <div className="flex flex-col md:flex-row gap-2 mb-4">
+
+                    <input
+                        placeholder="Search game id / host"
+                        value={query}
+                        onChange={e => setQuery(e.target.value)}
+                        className="flex-1 bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
+                    />
+
+                    <select
+                        value={statusFilter}
+                        onChange={e => setStatusFilter(e.target.value)}
+                        className="bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
+                    >
+                        <option value="ALL">All</option>
+                        <option value="WAITING">Waiting</option>
+                        <option value="PLAYING">Playing</option>
+                        <option value="FINISHED">Finished</option>
+                    </select>
+
+                    <label className="flex items-center gap-2 text-xs px-2">
+                        <input
+                            type="checkbox"
+                            checked={showMyGames}
+                            onChange={e => setShowMyGames(e.target.checked)}
+                        />
+                        My games
+                    </label>
 
                 </div>
 
@@ -418,7 +457,7 @@ export default function Lobby() {
                 </div>
 
             </div>
-
+            <Credits />
         </div>
     )
 }

@@ -64,6 +64,16 @@ export default function PlayPage() {
   const [history, setHistory] = useState<EventPieceMoved[]>([])
   const [userSide, setUserSide] = useState<"WHITE" | "BLACK" | "BOTH" | null>(null); // NEW
 
+  const moveSound = React.useRef<HTMLAudioElement | null>(null)
+  const captureSound = React.useRef<HTMLAudioElement | null>(null)
+
+  useEffect(() => {
+    moveSound.current = new Audio("/sounds/move.mp3")
+    moveSound.current.volume = 0.6
+    captureSound.current = new Audio("/sounds/move.mp3")
+    captureSound.current.volume = 0.6
+  }, [])
+
   function showToast(message: string, type: Toast["type"] = "info") {
 
     setToast({ message, type })
@@ -183,6 +193,14 @@ export default function PlayPage() {
 
       if (msg.type === "piece-moved" && msg.value) {
         addMoveToHistory(msg.value)
+
+        const capture = msg.value.piece_to !== null
+        const sound = capture ? captureSound : moveSound
+
+        if (sound.current) {
+          sound.current.currentTime = 0
+          sound.current.play().catch(() => { })
+        }
       }
 
     };
