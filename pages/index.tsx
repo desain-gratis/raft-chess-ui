@@ -174,6 +174,10 @@ export default function Lobby() {
         gameList = gameList.filter(g => g.state?.status === statusFilter)
     }
 
+    if (showMyGames) {
+        gameList = gameList.filter(isParticipating)
+    }
+
     const [myUID, setMyUID] = useState<string | null>(null)
 
     useEffect(() => {
