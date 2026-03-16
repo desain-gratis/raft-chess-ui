@@ -31,6 +31,7 @@ type Player = {
 type Game = {
     id: string
     namespace: string
+    created_at?: string
     request?: { player?: Player }
     state?: {
         status?: string
@@ -51,6 +52,7 @@ export default function Lobby() {
 
     const [query, setQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState("ALL")
+    const [dateFilter, setDateFilter] = useState("1d")
     const [showMyGames, setShowMyGames] = useState(false)
 
     const indexRef = useRef(new FlexSearch.Index({ tokenize: "forward" }))
@@ -164,6 +166,7 @@ export default function Lobby() {
     }, [])
 
     let gameList = Array.from(games.values())
+    const [myUID, setMyUID] = useState<string | null>(null)
 
     if (query) {
         const ids = indexRef.current.search(query)
@@ -174,11 +177,28 @@ export default function Lobby() {
         gameList = gameList.filter(g => g.state?.status === statusFilter)
     }
 
+    if (dateFilter !== "all") {
+
+        const now = Date.now()
+
+        const maxAge =
+            dateFilter === "1d" ? 86400000 :
+                dateFilter === "7d" ? 604800000 :
+                    2592000000 // 30d
+
+        gameList = gameList.filter(g => {
+
+            if (!g.created_at) return false
+
+            const created = new Date(g.created_at).getTime()
+
+            return now - created <= maxAge
+        })
+    }
+
     if (showMyGames) {
         gameList = gameList.filter(isParticipating)
     }
-
-    const [myUID, setMyUID] = useState<string | null>(null)
 
     useEffect(() => {
         setMyUID(localStorage.getItem("client_uid"))
@@ -261,6 +281,19 @@ export default function Lobby() {
                         <option value="PLAYING">Playing</option>
                         <option value="FINISHED">Finished</option>
                     </select>
+
+                    <select
+                        value={dateFilter}
+                        onChange={e => setDateFilter(e.target.value)}
+                        className="bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
+                    >
+                        <option value="1d">Past 1 day</option>
+                        <option value="7d">Past 7 days</option>
+                        <option value="30d">Past 30 days</option>
+                        <option value="all">All time</option>
+                    </select>
+
+
 
                     <label className="flex items-center gap-2 text-xs px-2">
                         <input
