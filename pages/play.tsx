@@ -400,6 +400,7 @@ export default function PlayPage() {
     loadGame(gameId)
     loadHistory(gameId)
     connectWS(gameId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
   return (

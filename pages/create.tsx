@@ -39,7 +39,7 @@ function getUsernameAuthorization(username: string) {
 }
 
 // fetch timeout helper
-async function fetchWithTimeout(url: string, options: RequestInit, timeout = 7000) {
+async function fetchWithTimeout(url: string, options: globalThis.RequestInit, timeout = 7000) {
     const controller = new AbortController()
     const id = setTimeout(() => controller.abort(), timeout)
 

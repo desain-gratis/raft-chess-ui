@@ -60,10 +60,13 @@ export default function Lobby() {
     function indexGame(game: Game) {
         const username = game.request?.player?.username || ""
         const uid = game.request?.player?.client_uid || ""
-        indexRef.current.add(game.id, `${game.id} ${username} ${uid}`)
+
+        indexRef.current.remove(game.id)   // 1️⃣ remove stale index
+        indexRef.current.add(game.id, `${game.id} ${username} ${uid}`)  // 2️⃣ add fresh
     }
 
     function mergeGame(update: Game) {
+        if (!update.id) return
 
         setGames(prev => {
 
@@ -169,10 +172,6 @@ export default function Lobby() {
 
     if (statusFilter !== "ALL") {
         gameList = gameList.filter(g => g.state?.status === statusFilter)
-    }
-
-    if (showMyGames) {
-        gameList = gameList.filter(isParticipating)
     }
 
     const [myUID, setMyUID] = useState<string | null>(null)
