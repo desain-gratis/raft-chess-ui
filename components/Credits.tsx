@@ -10,7 +10,7 @@ export default function Credits() {
             >
                 Pixabay
             </a>
-            (freesound_community, elviszorrilla)
+            (freesound_community, crunchpixstudio, elviszorrilla, tuomas_data)
         </div>
     )
 }

@@ -66,12 +66,21 @@ export default function PlayPage() {
 
   const moveSound = React.useRef<HTMLAudioElement | null>(null)
   const captureSound = React.useRef<HTMLAudioElement | null>(null)
+  const winSound = React.useRef<HTMLAudioElement | null>(null)
+  const loseSound = React.useRef<HTMLAudioElement | null>(null)
+  const drawSound = React.useRef<HTMLAudioElement | null>(null)
 
   useEffect(() => {
     moveSound.current = new Audio("/sounds/move.mp3")
-    moveSound.current.volume = 0.6
+    moveSound.current.volume = 0.7
     captureSound.current = new Audio("/sounds/capture.mp3")
-    captureSound.current.volume = 0.6
+    captureSound.current.volume = 0.7
+    winSound.current = new Audio("/sounds/win.mp3")
+    winSound.current.volume = 0.4
+    loseSound.current = new Audio("/sounds/lose.mp3")
+    loseSound.current.volume = 0.5
+    drawSound.current = new Audio("/sounds/draw.mp3")
+    drawSound.current.volume = 0.5
   }, [])
 
   function showToast(message: string, type: Toast["type"] = "info") {
@@ -133,6 +142,67 @@ export default function PlayPage() {
         showToast("Game started! ♟️");
       }
 
+      // --- GAME FINISHED SOUND ---
+      if (
+        prev?.state?.status !== "FINISHED" &&
+        next?.state?.status === "FINISHED"
+      ) {
+
+        const winnerUID = next?.state?.winner?.client_uid
+        const myUID = localStorage.getItem("client_uid")
+
+        const whiteUID = next?.state?.player?.WHITE?.client_uid
+        const blackUID = next?.state?.player?.BLACK?.client_uid
+
+        const selfPlay = whiteUID && blackUID && whiteUID === blackUID
+
+        // --- DRAW ---
+        if (next?.state?.result === "DRAW") {
+
+          if (drawSound.current) {
+            drawSound.current.currentTime = 0
+            drawSound.current.play().catch(() => { })
+          }
+
+          showToast("Draw game 🤝", "info")
+          return
+        }
+
+        // --- SELF PLAY ---
+        if (selfPlay) {
+
+          if (winSound.current) {
+            winSound.current.currentTime = 0
+            winSound.current.play().catch(() => { })
+          }
+
+          showToast("Game finished", "success")
+          return
+        }
+
+        if (winnerUID && winnerUID === myUID) {
+
+          if (winSound.current) {
+            winSound.current.currentTime = 0
+            winSound.current.play().catch(() => { })
+          }
+
+          showToast("You won! 🎉", "success")
+
+        } else if (winnerUID) {
+
+          if (loseSound.current) {
+            loseSound.current.currentTime = 0
+            loseSound.current.play().catch(() => { })
+          }
+
+          showToast("You lost", "error")
+        } else {
+          showToast("Game finished")
+        }
+
+      }
+
       if (
         role &&
         prev?.state?.current_turn !== role &&
@@ -192,14 +262,32 @@ export default function PlayPage() {
       }
 
       if (msg.type === "piece-moved" && msg.value) {
+
         addMoveToHistory(msg.value)
 
+        const myUID = localStorage.getItem("client_uid")
+        const moveUID = msg.value.player?.client_uid
+
+        const isMyMove = moveUID === myUID
         const capture = msg.value.piece_to !== null
 
-        if (captureSound.current && capture) {
+        if (capture && captureSound.current) {
           captureSound.current.currentTime = 0.3
           captureSound.current.play().catch(() => { })
         }
+
+        // Only play sound if opponent moved
+        if (!isMyMove) {
+
+          if (moveSound.current) {
+
+            moveSound.current.currentTime = 0
+            moveSound.current.play().catch(() => { })
+
+          }
+
+        }
+
       }
 
     };
@@ -718,8 +806,11 @@ export type GameState = {
   castling_rights: number
   board_state: string
   current_turn: Side | ""
-  player: Partial<Record<Side, Player>> | null // both players when joined
+  player: Partial<Record<Side, Player>> | null
+  winner?: Player | null
+  result?: string
   started_at: string | null
+  finished_at?: string | null
 }
 
 export type ChessGame = {
