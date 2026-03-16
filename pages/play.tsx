@@ -72,15 +72,15 @@ export default function PlayPage() {
 
   useEffect(() => {
     moveSound.current = new Audio("/sounds/move.mp3")
-    moveSound.current.volume = 0.7
+    moveSound.current.volume = 0.9
     captureSound.current = new Audio("/sounds/capture.mp3")
-    captureSound.current.volume = 0.7
+    captureSound.current.volume = 0.9
     winSound.current = new Audio("/sounds/win.mp3")
-    winSound.current.volume = 0.4
+    winSound.current.volume = 0.1
     loseSound.current = new Audio("/sounds/lose.mp3")
-    loseSound.current.volume = 0.5
+    loseSound.current.volume = 0.2
     drawSound.current = new Audio("/sounds/draw.mp3")
-    drawSound.current.volume = 0.5
+    drawSound.current.volume = 0.3
   }, [])
 
   function showToast(message: string, type: Toast["type"] = "info") {
