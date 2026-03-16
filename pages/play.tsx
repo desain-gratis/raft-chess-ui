@@ -226,7 +226,7 @@ export default function PlayPage() {
     const json = await res.json()
 
     if (json.success?.length) {
-      setGame(json.success[0])
+      mergeGame(json.success[0])
 
       // detect user side
       const myUID = localStorage.getItem("client_uid");
