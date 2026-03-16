@@ -165,7 +165,7 @@ export default function PlayPage() {
           }
 
           showToast("Draw game 🤝", "info")
-          return
+          return next
         }
 
         // --- SELF PLAY ---
@@ -177,7 +177,7 @@ export default function PlayPage() {
           }
 
           showToast("Game finished", "success")
-          return
+          return next
         }
 
         if (winnerUID && winnerUID === myUID) {
@@ -201,6 +201,7 @@ export default function PlayPage() {
           showToast("Game finished")
         }
 
+        return next
       }
 
       if (
