@@ -1,7 +1,6 @@
 "use client"
 
-import React from "react"
-import { useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import FlexSearch from "flexsearch"
 
@@ -9,10 +8,7 @@ const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411"
 
 function getApiBase() {
-    if (process.env.NEXT_PUBLIC_API) {
-        return process.env.NEXT_PUBLIC_API
-    }
-
+    if (process.env.NEXT_PUBLIC_API) return process.env.NEXT_PUBLIC_API
     if (typeof window === "undefined") return `http://${API_HOST}`
     const protocol = window.location.protocol === "https:" ? "https" : "http"
     return `${protocol}://${API_HOST}`
@@ -35,57 +31,126 @@ type Game = {
     id: string
     namespace: string
     request?: { player?: Player }
-    state?: { status?: string; player?: Record<"WHITE" | "BLACK", Player> }
+    state?: {
+        status?: string
+        player?: Record<"WHITE" | "BLACK", Player>
+        winner?: Player
+        result?: string
+    }
 }
 
 export default function Lobby() {
+
     const [games, setGames] = useState<Map<string, Game>>(new Map())
-    // const [loading, setLoading] = useState(true)
+    const [loading, setLoading] = useState(true)
+
+    const [apiError, setApiError] = useState<string | null>(null)
+
+    const [wsStatus, setWsStatus] = useState<"connecting" | "connected" | "reconnecting" | "offline">("connecting")
+
     const [query, setQuery] = useState("")
     const [statusFilter, setStatusFilter] = useState("ALL")
     const [showMyGames, setShowMyGames] = useState(false)
 
     const indexRef = useRef(new FlexSearch.Index({ tokenize: "forward" }))
 
+    const wsRef = useRef<WebSocket | null>(null)
+
     function indexGame(game: Game) {
         const username = game.request?.player?.username || ""
         const uid = game.request?.player?.client_uid || ""
-        const searchable = `${game.id} ${username} ${uid}`
-        indexRef.current.add(game.id, searchable)
+        indexRef.current.add(game.id, `${game.id} ${username} ${uid}`)
     }
 
     function mergeGame(update: Game) {
+
         setGames(prev => {
+
             const next = new Map(prev)
+
             const existing = next.get(update.id)
+
             const merged = {
                 ...existing,
                 ...update,
                 request: { ...existing?.request, ...update.request },
                 state: { ...existing?.state, ...update.state }
             }
+
             next.set(update.id, merged)
+
             indexGame(merged)
+
             return next
         })
     }
 
     async function loadInitialGames() {
-        const res = await fetch(`${getApiBase()}/list`, { headers: { "X-Namespace": NAMESPACE } })
-        const json = await res.json()
-        json.success?.forEach((game: Game) => mergeGame(game))
-        // setLoading(false)
+
+        try {
+
+            setApiError(null)
+
+            const res = await fetch(`${getApiBase()}/list`, {
+                headers: { "X-Namespace": NAMESPACE }
+            })
+
+            if (!res.ok) throw new Error(`API returned ${res.status}`)
+
+            const json = await res.json()
+
+            json.success?.forEach((game: Game) => mergeGame(game))
+
+            setLoading(false)
+
+        } catch (err: any) {
+
+            console.error(err)
+
+            setApiError("Cannot reach chess server")
+
+            setLoading(false)
+        }
     }
 
-    function connectWS() {
+    function connectWS(retry = 0) {
+
+        setWsStatus(retry ? "reconnecting" : "connecting")
+
         const ws = new WebSocket(getWsUrl(NAMESPACE))
-        ws.onmessage = ev => {
-            try {
-                const msg = JSON.parse(ev.data)
-                if (msg.type === "game-updated" && msg.value) mergeGame(msg.value)
-            } catch (e) { console.error(e) }
+
+        wsRef.current = ws
+
+        ws.onopen = () => {
+            setWsStatus("connected")
         }
-        ws.onclose = () => setTimeout(connectWS, 2000)
+
+        ws.onmessage = ev => {
+
+            try {
+
+                const msg = JSON.parse(ev.data)
+
+                if (msg.type === "game-updated" && msg.value)
+                    mergeGame(msg.value)
+
+            } catch (e) {
+                console.error(e)
+            }
+        }
+
+        ws.onerror = () => {
+            ws.close()
+        }
+
+        ws.onclose = () => {
+
+            const delay = Math.min(2000 * (retry + 1), 10000)
+
+            setTimeout(() => connectWS(retry + 1), delay)
+
+            if (retry > 4) setWsStatus("offline")
+        }
     }
 
     useEffect(() => {
@@ -95,203 +160,154 @@ export default function Lobby() {
 
     let gameList = Array.from(games.values())
 
-    // Search filter
     if (query) {
         const ids = indexRef.current.search(query)
         gameList = ids.map((id: any) => games.get(id)).filter(Boolean) as Game[]
     }
 
-    // Status filter
     if (statusFilter !== "ALL") {
         gameList = gameList.filter(g => g.state?.status === statusFilter)
     }
 
-    // Show only my games
-    if (showMyGames) {
-        const myUID = localStorage.getItem("client_uid")
-        gameList = gameList.filter(g => {
-            const white = g.state?.player?.WHITE?.client_uid
-            const black = g.state?.player?.BLACK?.client_uid
-            return white === myUID || black === myUID || g.request?.player?.client_uid === myUID
-        })
-    }
-
-    const [myUID, setMyUID] = useState<string | null>(null);
+    const [myUID, setMyUID] = useState<string | null>(null)
 
     useEffect(() => {
-        setMyUID(localStorage.getItem("client_uid"));
-    }, []);
+        setMyUID(localStorage.getItem("client_uid"))
+    }, [])
 
-    function isParticipating(game: Game, uid: string | null) {
-        if (!uid) return false;
-        const white = game.state?.player?.WHITE?.client_uid;
-        const black = game.state?.player?.BLACK?.client_uid;
-        const host = game.request?.player?.client_uid;
-        return uid === white || uid === black || uid === host;
+    function isParticipating(game: Game) {
+
+        if (!myUID) return false
+
+        const white = game.state?.player?.WHITE?.client_uid
+        const black = game.state?.player?.BLACK?.client_uid
+        const host = game.request?.player?.client_uid
+
+        return myUID === white || myUID === black || myUID === host
     }
 
-    gameList.sort((a, b) => {
-        const statusPriority = (status?: string) => {
-            switch (status) {
-                case "WAITING_FOR_OTHER_PLAYER": return 0
-                case "PLAYING": return 1
-                case "FINISHED":
-                case "CANCELED":
-                case "EXPIRED": return 2
-                default: return 3
-            }
-        }
-        const p = statusPriority(a.state?.status) - statusPriority(b.state?.status)
-        if (p !== 0) return p
-        return Number(b.id) - Number(a.id)
-    })
+    gameList.sort((a, b) => Number(b.id) - Number(a.id))
+
+    function statusDot() {
+
+        if (wsStatus === "connected")
+            return <span className="text-green-400">● connected</span>
+
+        if (wsStatus === "connecting")
+            return <span className="text-yellow-400">● connecting</span>
+
+        if (wsStatus === "reconnecting")
+            return <span className="text-orange-400">● reconnecting</span>
+
+        return <span className="text-red-400">● offline</span>
+    }
 
     return (
+
         <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm">
+
             <div className="max-w-5xl mx-auto px-4 py-5">
 
-                {/* HEADER */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+
                     <h1 className="text-xl font-semibold tracking-tight text-blue-400">
                         Chess Lobby
                     </h1>
 
-                    <Link
-                        href="/create"
-                        className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-center"
-                    >
-                        Create Game
-                    </Link>
-                </div>
+                    <div className="flex items-center gap-3">
 
+                        <span className="text-xs opacity-70">
+                            {statusDot()}
+                        </span>
 
-                {/* SEARCH + FILTER */}
-                <div className="flex flex-col sm:flex-row gap-2 mb-4">
-
-                    <input
-                        placeholder="Search username / uid / game"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        className="flex-1 bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
-                    />
-
-                    <div className="flex gap-2">
-
-                        <select
-                            value={statusFilter}
-                            onChange={e => setStatusFilter(e.target.value)}
-                            className="bg-neutral-900 border border-neutral-800 rounded-md px-3 py-2 text-sm"
+                        <Link
+                            href="/create"
+                            className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-center"
                         >
-                            <option value="ALL">All</option>
-                            <option value="WAITING_FOR_OTHER_PLAYER">Waiting</option>
-                            <option value="PLAYING">Playing</option>
-                            <option value="FINISHED">Finished</option>
-                            <option value="CANCELED">Canceled</option>
-                            <option value="EXPIRED">Expired</option>
-                        </select>
-
-                        <label className="flex items-center gap-2 text-sm px-2">
-                            <input
-                                type="checkbox"
-                                checked={showMyGames}
-                                onChange={e => setShowMyGames(e.target.checked)}
-                            />
-                            My Games
-                        </label>
+                            Create Game
+                        </Link>
 
                     </div>
+
                 </div>
 
+                {apiError && (
+                    <div className="bg-red-900/40 border border-red-800 text-red-300 px-3 py-2 rounded mb-3 text-xs">
+                        Server unreachable. Lobby may be outdated.
+                    </div>
+                )}
 
-                {/* MOBILE CARD VIEW */}
-                <div className="space-y-3 md:hidden">
+                {/* MOBILE LIST */}
+                <div className="space-y-2 md:hidden">
 
-                    {gameList.map(game => {
+                    {(loading ? new Array(6).fill(null) : gameList).map((game, i) => {
+
+                        if (!game)
+                            return (
+                                <div
+                                    key={i}
+                                    className="h-16 bg-neutral-900 border border-neutral-800 rounded animate-pulse"
+                                />
+                            )
 
                         const host = game.request?.player?.username || "Anonymous"
 
-                        let opponent = "-"
-                        if (game.state?.player) {
-                            const white = game.state.player.WHITE
-                            const black = game.state.player.BLACK
+                        const white = game.state?.player?.WHITE?.username
+                        const black = game.state?.player?.BLACK?.username
 
-                            if (white && black && white.username === host && black.username === host)
-                                opponent = white.username
-
-                            if (white && white.username !== host)
-                                opponent = white.username
-
-                            if (black && black.username !== host)
-                                opponent = black.username
-                        }
+                        const opponent = white === host ? black : white
 
                         const status = game.state?.status
+                        const winner = game.state?.winner?.username
+                        const result = game.state?.result
 
-                        let statusColor = "text-neutral-400"
-                        if (status === "WAITING_FOR_OTHER_PLAYER") statusColor = "text-amber-400"
-                        if (status === "PLAYING") statusColor = "text-blue-400"
-                        if (status === "FINISHED") statusColor = "text-emerald-400"
-                        if (status === "CANCELED") statusColor = "text-red-400"
-                        if (status === "EXPIRED") statusColor = "text-neutral-500"
-
-                        const isPlayer = myUID && isParticipating(game, myUID)
-
-                        const buttonStyle =
-                            status === "WAITING_FOR_OTHER_PLAYER"
-                                ? "bg-neutral-800"
-                                : status === "PLAYING"
-                                    ? isPlayer
-                                        ? "bg-green-600"
-                                        : "bg-blue-600"
-                                    : "bg-neutral-800"
-
-                        const buttonLabel =
-                            status === "WAITING_FOR_OTHER_PLAYER"
-                                ? "View"
-                                : status === "PLAYING"
-                                    ? isPlayer
-                                        ? "Play"
-                                        : "Watch"
-                                    : "View"
+                        const isPlayer = isParticipating(game)
 
                         return (
-
                             <div
                                 key={game.id}
-                                className="border border-neutral-800 rounded-lg p-3 bg-neutral-900 space-y-2"
+                                className="border border-neutral-800 rounded px-3 py-2 bg-neutral-900"
                             >
 
-                                <div className="flex justify-between items-center">
-                                    <span className="font-mono text-neutral-300">
+                                <div className="flex justify-between text-xs">
+
+                                    <span className="font-mono">
                                         #{game.id}
                                     </span>
 
-                                    <span className={`text-xs font-medium ${statusColor}`}>
-                                        {status?.replaceAll("_", " ").toLowerCase()}
+                                    <span className="opacity-70">
+                                        {status}
                                     </span>
+
                                 </div>
 
-                                <div className="text-sm flex justify-between">
-                                    <span className="text-neutral-400">Host</span>
-                                    <span>{host}</span>
+                                <div className="text-sm">
+                                    {host} vs {opponent || "-"}
                                 </div>
 
-                                <div className="text-sm flex justify-between">
-                                    <span className="text-neutral-400">Opponent</span>
-                                    <span>{opponent}</span>
-                                </div>
+                                {status === "FINISHED" && (
+                                    <div className="text-xs text-emerald-400">
+                                        {result} • {winner}
+                                    </div>
+                                )}
 
                                 <Link
                                     href={`/play?id=${game.id}`}
-                                    className={`block text-center mt-2 px-3 py-2 rounded-md text-sm font-medium text-white ${buttonStyle}`}
+                                    className={`block text-center mt-1 rounded text-xs py-1
+          ${status === "PLAYING"
+                                            ? isPlayer
+                                                ? "bg-green-600"
+                                                : "bg-blue-600"
+                                            : "bg-neutral-800"
+                                        }`}
                                 >
-                                    {buttonLabel}
+                                    {status === "PLAYING"
+                                        ? isPlayer ? "Play" : "Watch"
+                                        : "View"}
                                 </Link>
 
                             </div>
-
                         )
-
                     })}
 
                 </div>
@@ -302,51 +318,49 @@ export default function Lobby() {
 
                     <table className="w-full text-sm">
 
-                        <thead className="bg-neutral-900 text-neutral-400 uppercase tracking-wide text-xs">
+                        <thead className="bg-neutral-900 text-neutral-400 text-xs uppercase">
                             <tr>
                                 <th className="text-left px-3 py-2">Game</th>
                                 <th className="text-left px-3 py-2">Host</th>
                                 <th className="text-left px-3 py-2">Opponent</th>
                                 <th className="text-left px-3 py-2">Status</th>
+                                <th className="text-left px-3 py-2">Result</th>
                                 <th className="text-right px-3 py-2"></th>
                             </tr>
                         </thead>
 
                         <tbody>
 
-                            {gameList.map(game => {
+                            {(loading ? new Array(6).fill(null) : gameList).map((game, i) => {
+
+                                if (!game)
+                                    return (
+                                        <tr key={i} className="border-t border-neutral-900">
+                                            <td colSpan={6} className="px-3 py-3">
+                                                <div className="h-4 bg-neutral-800 rounded animate-pulse" />
+                                            </td>
+                                        </tr>
+                                    )
 
                                 const host = game.request?.player?.username || "Anonymous"
 
-                                let opponent = "-"
-                                if (game.state?.player) {
+                                const white = game.state?.player?.WHITE?.username
+                                const black = game.state?.player?.BLACK?.username
 
-                                    const white = game.state.player.WHITE
-                                    const black = game.state.player.BLACK
-
-                                    if (white && black && white.username === host && black.username === host)
-                                        opponent = white.username
-
-                                    if (white && white.username !== host)
-                                        opponent = white.username
-
-                                    if (black && black.username !== host)
-                                        opponent = black.username
-
-                                }
+                                const opponent = white === host ? black : white
 
                                 const status = game.state?.status
+                                const winner = game.state?.winner?.username
+                                const result = game.state?.result
 
-                                let statusColor = "text-neutral-400"
-                                if (status === "WAITING_FOR_OTHER_PLAYER") statusColor = "text-amber-400"
-                                if (status === "PLAYING") statusColor = "text-blue-400"
-                                if (status === "FINISHED") statusColor = "text-emerald-400"
-                                if (status === "CANCELED") statusColor = "text-red-400"
-                                if (status === "EXPIRED") statusColor = "text-neutral-500"
+                                const isPlayer = isParticipating(game)
 
                                 return (
 
-                                    <tr key={game.id} className="border-t border-neutral-900 hover:bg-neutral-900/60">
+                                    <tr
+                                        key={game.id}
+                                        className="border-t border-neutral-900 hover:bg-neutral-900/60"
+                                    >
 
                                         <td className="px-3 py-2 font-mono text-neutral-300">
                                             #{game.id}
@@ -357,11 +371,17 @@ export default function Lobby() {
                                         </td>
 
                                         <td className="px-3 py-2">
-                                            {opponent}
+                                            {opponent || "-"}
                                         </td>
 
-                                        <td className={`px-3 py-2 font-medium ${statusColor}`}>
-                                            {status?.replaceAll("_", " ").toLowerCase()}
+                                        <td className="px-3 py-2">
+                                            {status}
+                                        </td>
+
+                                        <td className="px-3 py-2 text-emerald-400 text-xs">
+                                            {status === "FINISHED"
+                                                ? `${result} • ${winner}`
+                                                : "-"}
                                         </td>
 
                                         <td className="px-3 py-2 text-right">
@@ -369,25 +389,22 @@ export default function Lobby() {
                                             <Link
                                                 href={`/play?id=${game.id}`}
                                                 className={`px-3 py-1.5 rounded text-xs font-medium
-${status === "WAITING_FOR_OTHER_PLAYER"
-                                                        ? "bg-neutral-800 hover:bg-neutral-700"
-                                                        : status === "PLAYING"
-                                                            ? (myUID && isParticipating(game, myUID)
-                                                                ? "bg-green-600 hover:bg-green-500"
-                                                                : "bg-blue-600 hover:bg-blue-500")
-                                                            : "bg-neutral-800 hover:bg-neutral-700"
+                ${status === "PLAYING"
+                                                        ? isPlayer
+                                                            ? "bg-green-600 hover:bg-green-500"
+                                                            : "bg-blue-600 hover:bg-blue-500"
+                                                        : "bg-neutral-800 hover:bg-neutral-700"
                                                     }`}
                                             >
 
-                                                {status === "WAITING_FOR_OTHER_PLAYER"
-                                                    ? "View"
-                                                    : status === "PLAYING"
-                                                        ? (myUID && isParticipating(game, myUID) ? "Play" : "Watch")
-                                                        : "View"}
+                                                {status === "PLAYING"
+                                                    ? isPlayer ? "Play" : "Watch"
+                                                    : "View"}
 
                                             </Link>
 
                                         </td>
+
                                     </tr>
 
                                 )
@@ -395,11 +412,13 @@ ${status === "WAITING_FOR_OTHER_PLAYER"
                             })}
 
                         </tbody>
+
                     </table>
 
                 </div>
 
             </div>
+
         </div>
     )
 }

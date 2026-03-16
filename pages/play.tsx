@@ -327,54 +327,101 @@ export default function PlayPage() {
           <div className="flex flex-col gap-4">
 
             {/* Game Info */}
+            {/* Game Info */}
             <div className="border border-neutral-800 rounded bg-neutral-900 p-4 space-y-3">
-              <div className="text-xs text-neutral-400 font-semibold mb-1">
+
+              <div className="text-xs text-neutral-400 font-semibold">
                 Game Info
               </div>
 
               {game && (
-                <div className="flex justify-between">
-                  <span>Status</span>
-                  <span className={`font-bold ${statusColors[game.state.status] || "text-white"}`}>
-                    {game.state.status.replaceAll("_", " ")}
-                  </span>
-                </div>
-              )}
 
-              <div className="flex justify-between">
-                <span>Turn</span>
-                <span>{game?.state.current_turn || "-"}</span>
-              </div>
+                <>
 
-              <div className="flex justify-between">
-                <span>Move #</span>
-                <span>{game?.state.fillmove_number}</span>
-              </div>
-
-              <div className="flex justify-between">
-                <span>Host</span>
-                <span className="font-bold text-blue-400">
-                  {game?.request.player.username}
-                </span>
-              </div>
-
-              {game?.state.status === "PLAYING" && game.state.player && (
-                <div className="space-y-1 pt-2 border-t border-neutral-800">
-                  <div className="text-xs text-neutral-400">
-                    Players
-                  </div>
-
-                  <div className="flex justify-between text-xs sm:text-sm">
-                    <span className="text-white font-bold">
-                      {game.state.player.WHITE?.username || "?"} (White)
-                    </span>
-
-                    <span className="text-yellow-400 font-bold">
-                      {game.state.player.BLACK?.username || "?"} (Black)
+                  {/* STATUS */}
+                  <div className="flex justify-between">
+                    <span>Status</span>
+                    <span className={`font-bold ${statusColors[game.state.status] || "text-white"}`}>
+                      {game.state.status.replaceAll("_", " ")}
                     </span>
                   </div>
-                </div>
+
+                  {/* MOVE NUMBER */}
+                  <div className="flex justify-between">
+                    <span>Move</span>
+                    <span>{game.state.fillmove_number}</span>
+                  </div>
+
+                  {/* PLAYERS */}
+                  {game.state.player && (
+                    <div className="pt-2 border-t border-neutral-800 space-y-2">
+
+                      <div className="text-xs text-neutral-400">
+                        Players
+                      </div>
+
+                      {/* WHITE */}
+                      <div className={`flex justify-between items-center px-2 py-1 rounded
+            ${game.state.current_turn === "WHITE"
+                          ? "bg-blue-600 text-white"
+                          : "bg-neutral-800"}
+          `}>
+
+                        <span>
+                          ♔ White
+                        </span>
+
+                        <span className="font-bold">
+                          {game.state.player.WHITE?.username || "?"}
+                        </span>
+
+                      </div>
+
+                      {/* BLACK */}
+                      <div className={`flex justify-between items-center px-2 py-1 rounded
+            ${game.state.current_turn === "BLACK"
+                          ? "bg-blue-600 text-white"
+                          : "bg-neutral-800"}
+          `}>
+
+                        <span>
+                          ♚ Black
+                        </span>
+
+                        <span className="font-bold">
+                          {game.state.player.BLACK?.username || "?"}
+                        </span>
+
+                      </div>
+
+                    </div>
+                  )}
+
+                  {/* RESULT */}
+                  {game.state.status === "FINISHED" && (
+                    <div className="pt-2 border-t border-neutral-800 space-y-1">
+
+                      <div className="flex justify-between">
+                        <span>Result</span>
+                        <span className="text-green-400 font-bold">
+                          {(game.state as any).result}
+                        </span>
+                      </div>
+
+                      <div className="flex justify-between">
+                        <span>Winner</span>
+                        <span className="text-yellow-400 font-bold">
+                          {(game.state as any).winner?.username || "Draw"}
+                        </span>
+                      </div>
+
+                    </div>
+                  )}
+
+                </>
+
               )}
+
             </div>
 
             {/* Join */}
