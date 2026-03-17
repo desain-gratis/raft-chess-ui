@@ -277,7 +277,7 @@ export default function Lobby() {
                         className="bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
                     >
                         <option value="ALL">All</option>
-                        <option value="WAITING">Waiting</option>
+                        <option value="WAITING_FOR_OTHER_PLAYER">Waiting</option>
                         <option value="PLAYING">Playing</option>
                         <option value="FINISHED">Finished</option>
                     </select>
@@ -350,8 +350,23 @@ export default function Lobby() {
                                         #{game.id}
                                     </span>
 
-                                    <span className="opacity-70">
-                                        {status}
+                                    <span
+                                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium
+        ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-500/10 text-yellow-400"}
+        ${status === "PLAYING" && "bg-green-500/10 text-green-400"}
+        ${status === "FINISHED" && "bg-blue-500/10 text-blue-400"}
+    `}
+                                    >
+                                        <span
+                                            className={`w-1.5 h-1.5 rounded-full
+            ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-400"}
+            ${status === "PLAYING" && "bg-green-400"}
+            ${status === "FINISHED" && "bg-blue-400"}
+        `}
+                                        />
+                                        {status === "WAITING_FOR_OTHER_PLAYER" && "Waiting"}
+                                        {status === "PLAYING" && "Playing"}
+                                        {status === "FINISHED" && "Finished"}
                                     </span>
 
                                 </div>
@@ -450,7 +465,24 @@ export default function Lobby() {
                                         </td>
 
                                         <td className="px-3 py-2">
-                                            {status}
+                                            <span
+                                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium
+        ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-500/10 text-yellow-400"}
+        ${status === "PLAYING" && "bg-green-500/10 text-green-400"}
+        ${status === "FINISHED" && "bg-blue-500/10 text-blue-400"}
+    `}
+                                            >
+                                                <span
+                                                    className={`w-1.5 h-1.5 rounded-full
+            ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-400"}
+            ${status === "PLAYING" && "bg-green-400"}
+            ${status === "FINISHED" && "bg-blue-400"}
+        `}
+                                                />
+                                                {status === "WAITING_FOR_OTHER_PLAYER" && "Waiting"}
+                                                {status === "PLAYING" && "Playing"}
+                                                {status === "FINISHED" && "Finished"}
+                                            </span>
                                         </td>
 
                                         <td className="px-3 py-2 text-emerald-400 text-xs">
