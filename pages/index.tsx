@@ -120,6 +120,7 @@ export default function Lobby() {
 
     useEffect(() => {
         loadInitialGames()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
     const wsUrl = getWsUrl(NAMESPACE)

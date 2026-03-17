@@ -1,8 +1,9 @@
 "use client"
 
-import { useEffect, useRef, useState } from "react"
-
 /* eslint-disable no-unused-vars */
+
+
+import { useEffect, useRef } from "react"
 
 type UseWebSocketOptions = {
     url: string | null
@@ -12,17 +13,29 @@ type UseWebSocketOptions = {
     reconnectInterval?: number
     enabled?: boolean
 }
+
 export function useWebSocket({
     url,
     onMessage,
-    reconnectInterval = 2000,
-    enabled = true,
     onOpen,
     onClose,
+    reconnectInterval = 2000,
+    enabled = true,
 }: UseWebSocketOptions) {
 
     const wsRef = useRef<WebSocket | null>(null)
     const shouldReconnect = useRef(true)
+
+    // ✅ store latest callbacks (fixes eslint + stale closure)
+    const onMessageRef = useRef(onMessage)
+    const onOpenRef = useRef(onOpen)
+    const onCloseRef = useRef(onClose)
+
+    useEffect(() => {
+        onMessageRef.current = onMessage
+        onOpenRef.current = onOpen
+        onCloseRef.current = onClose
+    }, [onMessage, onOpen, onClose])
 
     useEffect(() => {
         if (!url || !enabled) return
@@ -31,26 +44,19 @@ export function useWebSocket({
 
         function connect() {
             if (!url) return
-
             const ws = new WebSocket(url)
             wsRef.current = ws
 
-            ws.onmessage = (event) => {
-                onMessage?.(event)
-            }
-
-            ws.onclose = () => {
-                if (shouldReconnect.current) {
-                    setTimeout(connect, reconnectInterval)
-                }
-            }
-
             ws.onopen = () => {
-                onOpen?.()
+                onOpenRef.current?.()
+            }
+
+            ws.onmessage = (event) => {
+                onMessageRef.current?.(event)
             }
 
             ws.onclose = () => {
-                onClose?.()
+                onCloseRef.current?.()
 
                 if (shouldReconnect.current) {
                     setTimeout(connect, reconnectInterval)
@@ -61,16 +67,12 @@ export function useWebSocket({
         connect()
 
         return () => {
-            // stop reconnect loop
             shouldReconnect.current = false
-
-            // close socket
-            if (wsRef.current) {
-                wsRef.current.close()
-                wsRef.current = null
-            }
+            wsRef.current?.close()
+            wsRef.current = null
         }
-    }, [url, enabled])
+
+    }, [url, enabled, reconnectInterval]) // ✅ safe deps
 
     return {
         send: (data: any) => {
