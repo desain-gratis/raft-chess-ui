@@ -5,6 +5,7 @@ import { useRouter } from "next/router"
 import { useEffect, useState } from "react"
 import ChessBoard from "../components/ChessBoard"
 import ChessPiece from "../components/ChessPieces"
+import { useWebSocket } from "../src/hooks/useWebsocket"
 
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
@@ -82,9 +83,6 @@ export default function PlayPage() {
     drawSound.current = new Audio("/sounds/draw.mp3")
     drawSound.current.volume = 0.3
   }, [])
-
-  const wsRef = React.useRef<WebSocket | null>(null)
-  const shouldReconnect = React.useRef(true)
 
   function showToast(message: string, type: Toast["type"] = "info") {
 
@@ -256,47 +254,7 @@ export default function PlayPage() {
   }
 
 
-  function connectWS(gameId: string) {
-    shouldReconnect.current = true
 
-    const ws = new WebSocket(getWsUrl(gameId, NAMESPACE))
-    wsRef.current = ws
-
-    ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data)
-
-      if (msg.type === "game-updated" && msg.value) {
-        mergeGame(msg.value)
-      }
-
-      if (msg.type === "piece-moved" && msg.value) {
-        addMoveToHistory(msg.value)
-
-        const myUID = localStorage.getItem("client_uid")
-        const moveUID = msg.value.player?.client_uid
-
-        const isMyMove = moveUID === myUID
-        const capture = msg.value.piece_to !== null
-
-        if (capture && captureSound.current) {
-          captureSound.current.currentTime = 0.3
-          captureSound.current.play().catch(() => { })
-        }
-
-        if (!isMyMove && moveSound.current) {
-          moveSound.current.currentTime = 0
-          moveSound.current.play().catch(() => { })
-        }
-      }
-    }
-
-    ws.onclose = () => {
-      // only reconnect if still on page
-      if (shouldReconnect.current) {
-        setTimeout(() => connectWS(gameId), 2000)
-      }
-    }
-  }
 
   async function sendMove(from: string, to: string, revert: () => void) {
     const client_uid = localStorage.getItem("client_uid")
@@ -402,20 +360,41 @@ export default function PlayPage() {
 
     loadGame(gameId)
     loadHistory(gameId)
-    connectWS(gameId)
-
-    return () => {
-      // 🚨 stop reconnect loop
-      shouldReconnect.current = false
-
-      // 🚨 close socket cleanly
-      if (wsRef.current) {
-        wsRef.current.close()
-        wsRef.current = null
-      }
-    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
+
+  const wsUrl = id ? getWsUrl(String(id), NAMESPACE) : null
+
+  useWebSocket({
+    url: wsUrl,
+    onMessage: (ev) => {
+      const msg = JSON.parse(ev.data)
+
+      if (msg.type === "game-updated" && msg.value) {
+        mergeGame(msg.value)
+      }
+
+      if (msg.type === "piece-moved" && msg.value) {
+        addMoveToHistory(msg.value)
+
+        const myUID = localStorage.getItem("client_uid")
+        const moveUID = msg.value.player?.client_uid
+
+        const isMyMove = moveUID === myUID
+        const capture = msg.value.piece_to !== null
+
+        if (capture && captureSound.current) {
+          captureSound.current.currentTime = 0.3
+          captureSound.current.play().catch(() => { })
+        }
+
+        if (!isMyMove && moveSound.current) {
+          moveSound.current.currentTime = 0
+          moveSound.current.play().catch(() => { })
+        }
+      }
+    }
+  })
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm font-sans">

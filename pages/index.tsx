@@ -4,6 +4,7 @@ import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import FlexSearch from "flexsearch"
 import Credits from "../components/Credits"
+import { useWebSocket } from "../src/hooks/useWebsocket"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411"
@@ -56,8 +57,6 @@ export default function Lobby() {
     const [showMyGames, setShowMyGames] = useState(false)
 
     const indexRef = useRef(new FlexSearch.Index({ tokenize: "forward" }))
-
-    const wsRef = useRef<WebSocket | null>(null)
 
     function indexGame(game: Game) {
         const username = game.request?.player?.username || ""
@@ -119,51 +118,33 @@ export default function Lobby() {
         }
     }
 
-    function connectWS(retry = 0) {
+    useEffect(() => {
+        loadInitialGames()
+    }, [])
 
-        setWsStatus(retry ? "reconnecting" : "connecting")
+    const wsUrl = getWsUrl(NAMESPACE)
 
-        const ws = new WebSocket(getWsUrl(NAMESPACE))
-
-        wsRef.current = ws
-
-        ws.onopen = () => {
-            setWsStatus("connected")
-        }
-
-        ws.onmessage = ev => {
+    useWebSocket({
+        url: wsUrl,
+        reconnectInterval: 2000,
+        onMessage: (ev) => {
 
             try {
 
                 const msg = JSON.parse(ev.data)
 
-                if (msg.type === "game-updated" && msg.value)
+                if (msg.type === "game-updated" && msg.value) {
                     mergeGame(msg.value)
+                }
 
             } catch (e) {
                 console.error(e)
             }
-        }
-
-        ws.onerror = () => {
-            ws.close()
-        }
-
-        ws.onclose = () => {
-
-            const delay = Math.min(2000 * (retry + 1), 10000)
-
-            setTimeout(() => connectWS(retry + 1), delay)
-
-            if (retry > 4) setWsStatus("offline")
-        }
-    }
-
-    useEffect(() => {
-        loadInitialGames()
-        connectWS()
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [])
+        },
+        // 👇 we piggyback on lifecycle via small tweak
+        onOpen: () => setWsStatus("connected"),
+        onClose: () => setWsStatus("reconnecting"),
+    })
 
     let gameList = Array.from(games.values())
     const [myUID, setMyUID] = useState<string | null>(null)

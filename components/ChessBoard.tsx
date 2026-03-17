@@ -2,7 +2,7 @@
 
 /* eslint-disable no-unused-vars */
 
-import React, { useMemo, useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import ChessPiece from "./ChessPieces";
 
 type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "k";
