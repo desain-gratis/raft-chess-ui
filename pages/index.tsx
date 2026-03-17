@@ -359,7 +359,7 @@ export default function Lobby() {
 
                                 {status === "FINISHED" && (
                                     <div className="text-xs text-emerald-400">
-                                        {result} • {winner}
+                                        {result} {winner ? `• ${winner}` : ""}
                                     </div>
                                 )}
 
@@ -468,9 +468,11 @@ export default function Lobby() {
                                         </td>
 
                                         <td className="px-3 py-2 text-emerald-400 text-xs">
-                                            {status === "FINISHED"
-                                                ? `${result} • ${winner}`
-                                                : "-"}
+                                            {status === "FINISHED" && (
+                                                <div className="text-xs text-emerald-400">
+                                                    {result} {winner ? `• ${winner}` : ""}
+                                                </div>
+                                            )}
                                         </td>
 
                                         <td className="px-3 py-2 text-right">
