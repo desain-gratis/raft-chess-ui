@@ -90,7 +90,7 @@ export default function CreateGamePage() {
 
     }, [])
 
-    async function createGame(e: React.FormEvent) {
+    async function createGame(e: React.FormEvent<HTMLFormElement>) {
 
         e.preventDefault()
 
@@ -135,7 +135,16 @@ export default function CreateGamePage() {
                 throw new Error(`Server returned ${res.status}`)
             }
 
-            router.push("/")
+            const data = await res.json()
+
+            const gameId = data?.success?.id
+
+            if (!gameId) {
+                throw new Error("Invalid response: missing game id")
+            }
+
+            // ✅ redirect to play page
+            router.push(`/play/?id=${gameId}`)
 
         } catch (err: any) {
 
