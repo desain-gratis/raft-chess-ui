@@ -65,6 +65,8 @@ export default function PlayPage() {
   const [history, setHistory] = useState<EventPieceMoved[]>([])
   const [userSide, setUserSide] = useState<"WHITE" | "BLACK" | "BOTH" | null>(null); // NEW
 
+  const [wsConnected, setWsConnected] = useState(false)
+
   const moveSound = React.useRef<HTMLAudioElement | null>(null)
   const captureSound = React.useRef<HTMLAudioElement | null>(null)
   const winSound = React.useRef<HTMLAudioElement | null>(null)
@@ -367,6 +369,17 @@ export default function PlayPage() {
 
   useWebSocket({
     url: wsUrl,
+    onOpen: () => {
+      setWsConnected(true)
+
+      // 🔥 reload latest game state on reconnect
+      if (id) {
+        loadGame(String(id))
+      }
+    },
+    onClose: () => {
+      setWsConnected(false)
+    },
     onMessage: (ev) => {
       const msg = JSON.parse(ev.data)
 
@@ -422,7 +435,14 @@ export default function PlayPage() {
             <div className="w-full max-w-[420px] cursor-grab active:cursor-grabbing select-none shadow-2xl rounded-lg overflow-hidden">
               <ChessBoard
                 boardState={game?.state?.board_state}
-                onMove={(from, to, revert) => sendMove(from, to, revert)}
+                onMove={(from, to, revert) => {
+                  if (!wsConnected) {
+                    showToast("Disconnected from server, please refresh", "error")
+                    revert()
+                    return
+                  }
+                  sendMove(from, to, revert)
+                }}
                 userSide={userSide}
               />
             </div>
@@ -431,7 +451,14 @@ export default function PlayPage() {
           {/* Sidebar */}
           <div className="flex flex-col gap-4">
 
-            {/* Game Info */}
+
+            {!wsConnected && (
+              <div className="text-xs text-red-400 text-center">
+                Disconnected — reconnecting...
+              </div>
+            )}
+
+
             {/* Game Info */}
             <div className="border border-neutral-800 rounded bg-neutral-900 p-4 space-y-3">
 
