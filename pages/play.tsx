@@ -303,9 +303,7 @@ export default function PlayPage() {
       // server returned structured error
       if (json.error) {
 
-        const message =
-          json.error?.errors?.[0]?.message ||
-          "Move rejected"
+        const message = json.error || "Move rejected"
 
         showToast(message, "error")
 
