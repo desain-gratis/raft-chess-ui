@@ -125,7 +125,14 @@ export default function PlayPage() {
       };
 
       const myUID = localStorage.getItem("client_uid");
+
       const players = next?.state?.player;
+
+      if (!players) {
+        setUserSide(null)
+        return next
+      }
+
 
       let role: "WHITE" | "BLACK" | "BOTH" | null = null;
       if (players["BLACK"]?.client_uid === myUID && players["WHITE"]?.client_uid === myUID) {
