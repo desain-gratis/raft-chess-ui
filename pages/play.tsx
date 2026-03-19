@@ -66,7 +66,7 @@ export default function PlayPage() {
 
   const [fingerprint, setFingerprint] = useState("")
 
-  const [wsConnected, setWsConnected] = useState(false)
+  const [wsConnected, setWsConnected] = useState<"connecting" | "connected" | "disconnected">("connecting")
 
   const moveSound = React.useRef<HTMLAudioElement | null>(null)
   const captureSound = React.useRef<HTMLAudioElement | null>(null)
@@ -298,7 +298,6 @@ export default function PlayPage() {
       moveSound.current.play().catch(() => { })
     }
 
-
     try {
 
       const res = await fetch(`${getApiBase()}/move`, {
@@ -385,15 +384,14 @@ export default function PlayPage() {
   useWebSocket({
     url: wsUrl,
     onOpen: () => {
-      setWsConnected(true)
+      setWsConnected("connected")
 
-      // 🔥 reload latest game state on reconnect
       if (id) {
         loadGame(String(id))
       }
     },
     onClose: () => {
-      setWsConnected(false)
+      setWsConnected("disconnected")
     },
     onMessage: (ev) => {
       const msg = JSON.parse(ev.data)
@@ -451,11 +449,18 @@ export default function PlayPage() {
               <ChessBoard
                 boardState={game?.state?.board_state}
                 onMove={(from, to, revert) => {
-                  if (!wsConnected) {
+                  if (wsConnected === "disconnected") {
                     showToast("Disconnected from server, please refresh", "error")
                     revert()
                     return
                   }
+
+                  if (wsConnected !== "connected") {
+                    showToast("Not connected yet", "error")
+                    revert()
+                    return
+                  }
+
                   sendMove(from, to, revert)
                 }}
                 userSide={userSide}
@@ -467,12 +472,15 @@ export default function PlayPage() {
           <div className="flex flex-col gap-4">
 
 
-            {!wsConnected && (
-              <div className="text-xs text-red-400 text-center">
-                Disconnected — reconnecting...
+            {wsConnected !== "connected" && (
+              <div className="text-xs text-center">
+                {wsConnected === "connecting" ? (
+                  <span className="text-yellow-400">Connecting...</span>
+                ) : (
+                  <span className="text-red-400">Disconnected — reconnecting...</span>
+                )}
               </div>
             )}
-
 
             {/* Game Info */}
             <div className="border border-neutral-800 rounded bg-neutral-900 p-4 space-y-3">
