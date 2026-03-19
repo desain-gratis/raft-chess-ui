@@ -16,19 +16,22 @@ function withObfuscator(nextConfig = {}) {
                 config.plugins.push(
                     new WebpackObfuscator(
                         {
-                            rotateStringArray: true,
+                            compact: true,
+
+                            // ✅ KEEP
                             stringArray: true,
                             stringArrayEncoding: ["base64"],
-                            stringArrayThreshold: 0.75,
+                            rotateStringArray: true,
 
-                            compact: true,
-                            controlFlowFlattening: true,
-                            controlFlowFlatteningThreshold: 0.3,
+                            // ❌ DISABLE (these cause your crash)
+                            controlFlowFlattening: false,
+                            deadCodeInjection: false,
 
-                            deadCodeInjection: true,
-                            deadCodeInjectionThreshold: 0.2,
+                            // ⚠️ also risky
+                            simplify: true,
+                            splitStrings: false,
 
-                            disableConsoleOutput: true,
+                            disableConsoleOutput: false,
                         },
                         [
                             // ❌ Exclude everything
