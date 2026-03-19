@@ -88,7 +88,10 @@ export default function PlayPage() {
   }, [])
 
   useEffect(() => {
-    import("../src/utils/fingerprint").then(v => {
+    import(
+      /* webpackChunkName: "fingerprint" */
+      "../src/utils/fingerprint"
+    ).then(v => {
       const FingerprintCollector = (v).default;
       const f = new FingerprintCollector()
       f.collect().then(fingerprint => {
