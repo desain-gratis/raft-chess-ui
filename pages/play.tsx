@@ -360,7 +360,7 @@ export default function PlayPage() {
 
     const res = await fetch(`${getApiBase()}/play`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", "C-Fingerprint": fingerprint },
+      headers: { "Content-Type": "application/json", "AntiBot-Fingerprint": fingerprint },
       body: JSON.stringify(body),
     })
 

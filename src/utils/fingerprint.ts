@@ -78,7 +78,7 @@ class FingerprintCollector {
         await this.safeCollectSignal("cdp", () => this.collectCDPInfo());
         await this.safeCollectSignal("worker", () => this.collectWorkerInfo());
 
-        await this.safeCollectSignal("timestamp", () => new Date().toUTCString());
+        await this.safeCollectSignal("timestamp", () => new Date().toISOString());
 
         return btoa(JSON.stringify(this.fingerprint));
     }
@@ -203,7 +203,7 @@ class FingerprintCollector {
 
         return new Promise((resolve) => {
             try {
-                const workerCode = `(${() => {
+                const workerCode = String.raw`(${() => {
                     try {
                         const fingerprintWorker: any = {};
                         fingerprintWorker.userAgent = navigator.userAgent;

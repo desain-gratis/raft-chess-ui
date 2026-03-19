@@ -143,7 +143,7 @@ export default function CreateGamePage() {
                 `${getApiBase()}/create`,
                 {
                     method: "POST",
-                    headers: { "Content-Type": "application/json", "C-Fingeprint": fingerprint },
+                    headers: { "Content-Type": "application/json", "AntiBot-Fingerprint": fingerprint },
                     body: JSON.stringify(payload),
                 },
                 7000
