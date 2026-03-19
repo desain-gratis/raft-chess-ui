@@ -67,6 +67,18 @@ export default function CreateGamePage() {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
+    const [fingerprint, setFingerprint] = useState<string>("")
+
+    useEffect(() => {
+        import("../src/utils/fingerprint").then(v => {
+            const FingerprintCollector = (v).default;
+            const f = new FingerprintCollector()
+            f.collect().then(fingerprint => {
+                setFingerprint(fingerprint);
+            })
+        })
+    }, []);
+
     useEffect(() => {
 
         let uid = localStorage.getItem("client_uid")
@@ -121,11 +133,14 @@ export default function CreateGamePage() {
                 created_at: new Date().toISOString(),
             }
 
+            // const f = new FingerprintCollector()
+            // const fingerprint = await f.collect()
+
             const res = await fetchWithTimeout(
                 `${getApiBase()}/create`,
                 {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: { "Content-Type": "application/json", "C-Fingeprint": fingerprint },
                     body: JSON.stringify(payload),
                 },
                 7000

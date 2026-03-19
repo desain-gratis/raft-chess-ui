@@ -7,7 +7,6 @@ import ChessBoard from "../components/ChessBoard"
 import ChessPiece from "../components/ChessPieces"
 import { useWebSocket } from "../src/hooks/useWebsocket"
 
-
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411";
 
@@ -65,6 +64,8 @@ export default function PlayPage() {
   const [history, setHistory] = useState<EventPieceMoved[]>([])
   const [userSide, setUserSide] = useState<"WHITE" | "BLACK" | "BOTH" | null>(null); // NEW
 
+  const [fingerprint, setFingerprint] = useState("")
+
   const [wsConnected, setWsConnected] = useState(false)
 
   const moveSound = React.useRef<HTMLAudioElement | null>(null)
@@ -85,6 +86,16 @@ export default function PlayPage() {
     drawSound.current = new Audio("/sounds/draw.mp3")
     drawSound.current.volume = 0.3
   }, [])
+
+  useEffect(() => {
+    import("../src/utils/fingerprint").then(v => {
+      const FingerprintCollector = (v).default;
+      const f = new FingerprintCollector()
+      f.collect().then(fingerprint => {
+        setFingerprint(fingerprint);
+      })
+    })
+  }, []);
 
   function showToast(message: string, type: Toast["type"] = "info") {
 
@@ -316,11 +327,8 @@ export default function PlayPage() {
       showToast(`${from} → ${to}`)
 
     } catch (err) {
-
       showToast("Network error", "error")
-
     }
-
   }
 
 
@@ -329,6 +337,8 @@ export default function PlayPage() {
 
     let username = localStorage.getItem("username")
     if (!username) return showToast("Username is required", "error")
+
+    // TODO: check fingerprint here
 
     const usernameAuth = getUsernameAuthorization(username)
     const client_uid = localStorage.getItem("client_uid")
@@ -348,7 +358,7 @@ export default function PlayPage() {
 
     const res = await fetch(`${getApiBase()}/play`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "C-Fingerprint": fingerprint },
       body: JSON.stringify(body),
     })
 
