@@ -155,6 +155,10 @@ export default function CreateGamePage() {
 
             const data = await res.json()
 
+            if (data && data.error) {
+                throw data.error
+            }
+
             const gameId = data?.success?.id
 
             if (!gameId) {
@@ -170,6 +174,8 @@ export default function CreateGamePage() {
 
             if (err.name === "AbortError") {
                 setError("Server took too long to respond.")
+            } else if (err) {
+                setError(err)
             } else {
                 setError("Cannot reach chess server.")
             }
