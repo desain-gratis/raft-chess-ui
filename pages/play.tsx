@@ -410,7 +410,7 @@ export default function PlayPage() {
         const moveUID = msg.value.player?.client_uid
 
         const isMyMove = moveUID === myUID
-        const capture = msg.value.piece_to !== null
+        const capture = msg.value.captured_piece !== null
 
         if (capture && captureSound.current) {
           captureSound.current.currentTime = 0.3
