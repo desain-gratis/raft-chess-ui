@@ -36,30 +36,30 @@ jobs:
           generate_release_notes: true
           files: archive.tar.gz
 
-  # upload:
-  #   runs-on: ubuntu-latest
-  #   needs: build # Ensures job sequence
-  #   steps:
-  #     - name: Download build artifact
-  #       uses: actions/download-artifact@v4
-  #       with:
-  #         name: build-output
-  #         path: out # Downloads files back into this folder
+  upload:
+    runs-on: ubuntu-latest
+    needs: build # Ensures job sequence
+    steps:
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-output
+          path: out # Downloads files back into this folder
 
-  #     - name: Verify archive exists
-  #       run: ls -R out
+      - name: Verify archive exists
+        run: ls -R out
 
-  #     - name: Tailscale
-  #       uses: tailscale/github-action@v4
-  #       with:
-  #         oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
-  #         oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
-  #         tags: tag:desain-gratis-ci
+      - name: Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:desain-gratis-ci
 
-  #     - name: Send deploy metadata
-  #       uses: desain-gratis/deployd-gh-action@v1
-  #       with:
-  #         url: http://tc-jkt1:9401
-  #         namespace: deployd
-  #         name: raft-chess-ui
-  #         archive: out
+      - name: Send deploy metadata
+        uses: desain-gratis/deployd-gh-action@v2
+        with:
+          url: http://tc-jkt1:9401
+          namespace: deployd
+          name: raft-chess-ui
+          archive: out
