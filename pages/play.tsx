@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import ChessBoard from "../components/ChessBoard"
 import ChessPiece from "../components/ChessPieces"
 import { useWebSocket } from "../src/hooks/useWebsocket"
+import { Avatar, ConnectionPill, IconAlert, IconArrowLeft, IconCheck, IconInfo, Logo, StatusBadge } from "../components/ui"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411";
@@ -425,166 +426,150 @@ export default function PlayPage() {
     }
   })
 
+  // The board is drawn from the user's side (BLACK flips it); mirror that for the player strips.
+  const bottomSide: Side = userSide === "BLACK" ? "BLACK" : "WHITE"
+  const topSide: Side = bottomSide === "WHITE" ? "BLACK" : "WHITE"
+
+  const renderStrip = (side: Side) => (
+    <PlayerStrip
+      side={side}
+      name={game?.state?.player?.[side]?.username}
+      placeholder={game?.state?.status === "WAITING_FOR_OTHER_PLAYER" ? "Waiting for opponent…" : "?"}
+      active={game?.state?.status === "PLAYING" && game.state.current_turn === side}
+      isYou={userSide === side || userSide === "BOTH"}
+    />
+  )
+
   return (
-    <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm font-sans">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 sm:py-6">
+    <div className="min-h-screen text-sm text-zinc-300">
+      <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
 
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
-          <h1 className="text-xl sm:text-2xl font-bold text-blue-400">
-            Game #{id}
-          </h1>
+        <header className="mb-6 flex items-center justify-between gap-3">
 
-          <button
-            onClick={() => router.push("/")}
-            className="px-4 py-2 rounded border border-neutral-700 hover:bg-neutral-800 transition text-sm"
-          >
-            Lobby
-          </button>
-        </div>
-
-        {/* Responsive Layout */}
-        <div className="grid grid-cols-1 lg:grid-cols-[1fr_320px] gap-6">
-
-          {/* Chessboard */}
-          <div className="flex justify-center">
-            <div className="w-full max-w-[420px] cursor-grab active:cursor-grabbing select-none shadow-2xl rounded-lg overflow-hidden">
-              <ChessBoard
-                boardState={game?.state?.board_state}
-                onMove={(from, to, revert) => {
-                  if (wsConnected === "disconnected") {
-                    showToast("Disconnected from server, please refresh", "error")
-                    revert()
-                    return
-                  }
-
-                  if (wsConnected !== "connected") {
-                    showToast("Not connected yet", "error")
-                    revert()
-                    return
-                  }
-
-                  sendMove(from, to, revert)
-                }}
-                userSide={userSide}
-              />
+          <div className="flex min-w-0 items-center gap-3">
+            <Logo size={38} />
+            <div className="min-w-0">
+              <div className="eyebrow">Game</div>
+              <h1 className="truncate font-mono text-xl font-semibold text-zinc-50">
+                #{id}
+              </h1>
             </div>
           </div>
 
+          <div className="flex items-center gap-2.5">
+            <ConnectionPill state={wsConnected} />
+
+            <button
+              onClick={() => router.push("/")}
+              className="btn btn-secondary btn-sm"
+            >
+              <IconArrowLeft className="h-4 w-4" />
+              Lobby
+            </button>
+          </div>
+
+        </header>
+
+        {/* Responsive Layout */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
+
+          {/* Chessboard */}
+          <div className="mx-auto flex w-full max-w-[560px] flex-col gap-3">
+
+            {renderStrip(topSide)}
+
+            <ChessBoard
+              boardState={game?.state?.board_state}
+              onMove={(from, to, revert) => {
+                if (wsConnected === "disconnected") {
+                  showToast("Disconnected from server, please refresh", "error")
+                  revert()
+                  return
+                }
+
+                if (wsConnected !== "connected") {
+                  showToast("Not connected yet", "error")
+                  revert()
+                  return
+                }
+
+                sendMove(from, to, revert)
+              }}
+              userSide={userSide}
+            />
+
+            {renderStrip(bottomSide)}
+
+          </div>
+
           {/* Sidebar */}
-          <div className="flex flex-col gap-4">
-
-
-            {wsConnected !== "connected" && (
-              <div className="text-xs text-center">
-                {wsConnected === "connecting" ? (
-                  <span className="text-yellow-400">Connecting...</span>
-                ) : (
-                  <span className="text-red-400">Disconnected — reconnecting...</span>
-                )}
-              </div>
-            )}
+          <aside className="flex flex-col gap-4">
 
             {/* Game Info */}
-            <div className="border border-neutral-800 rounded bg-neutral-900 p-4 space-y-3">
+            <section className="card animate-fade-up p-4">
 
-              <div className="text-xs text-neutral-400 font-semibold">
-                Game Info
-              </div>
+              <h2 className="eyebrow mb-3">Game Info</h2>
 
-              {game && (
+              {game ? (
 
-                <>
+                <dl className="space-y-3">
 
                   {/* STATUS */}
-                  <div className="flex justify-between">
-                    <span>Status</span>
-                    <span className={`font-bold ${statusColors[game.state.status] || "text-white"}`}>
-                      {game.state.status.replaceAll("_", " ")}
-                    </span>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-zinc-400">Status</dt>
+                    <dd>
+                      <StatusBadge status={game.state.status} long />
+                    </dd>
                   </div>
 
                   {/* MOVE NUMBER */}
-                  <div className="flex justify-between">
-                    <span>Move</span>
-                    <span>{game.state.fillmove_number}</span>
+                  <div className="flex items-center justify-between">
+                    <dt className="text-zinc-400">Move</dt>
+                    <dd className="font-mono font-semibold tabular-nums text-zinc-100">
+                      {game.state.fillmove_number}
+                    </dd>
                   </div>
-
-                  {/* PLAYERS */}
-                  {game.state.player && (
-                    <div className="pt-2 border-t border-neutral-800 space-y-2">
-
-                      <div className="text-xs text-neutral-400">
-                        Players
-                      </div>
-
-                      {/* WHITE */}
-                      <div className={`flex justify-between items-center px-2 py-1 rounded
-            ${game.state.current_turn === "WHITE"
-                          ? "bg-blue-600 text-white"
-                          : "bg-neutral-800"}
-          `}>
-
-                        <span>
-                          ♔ White
-                        </span>
-
-                        <span className="font-bold">
-                          {game.state.player.WHITE?.username || "?"}
-                        </span>
-
-                      </div>
-
-                      {/* BLACK */}
-                      <div className={`flex justify-between items-center px-2 py-1 rounded
-            ${game.state.current_turn === "BLACK"
-                          ? "bg-blue-600 text-white"
-                          : "bg-neutral-800"}
-          `}>
-
-                        <span>
-                          ♚ Black
-                        </span>
-
-                        <span className="font-bold">
-                          {game.state.player.BLACK?.username || "?"}
-                        </span>
-
-                      </div>
-
-                    </div>
-                  )}
 
                   {/* RESULT */}
                   {game.state.status === "FINISHED" && (
-                    <div className="pt-2 border-t border-neutral-800 space-y-1">
+                    <div className="space-y-3 border-t border-white/10 pt-3">
 
-                      <div className="flex justify-between">
-                        <span>Result</span>
-                        <span className="text-green-400 font-bold">
-                          {(game.state as any).result}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <dt className="text-zinc-400">Result</dt>
+                        <dd className="font-semibold text-emerald-300">
+                          {game.state.result}
+                        </dd>
                       </div>
 
-                      <div className="flex justify-between">
-                        <span>Winner</span>
-                        <span className="text-yellow-400 font-bold">
-                          {(game.state as any).winner?.username || "Draw"}
-                        </span>
+                      <div className="flex items-center justify-between">
+                        <dt className="text-zinc-400">Winner</dt>
+                        <dd className="font-semibold text-amber-300">
+                          {game.state.winner?.username || "Draw"}
+                        </dd>
                       </div>
 
                     </div>
                   )}
 
-                </>
+                </dl>
+
+              ) : (
+
+                <div className="space-y-3">
+                  <div className="skeleton h-5" />
+                  <div className="skeleton h-5" />
+                </div>
 
               )}
 
-            </div>
+            </section>
 
             {/* Join */}
             {game?.state.status === "WAITING_FOR_OTHER_PLAYER" && (
-              <div className="space-y-2">
+              <section className="card animate-fade-up space-y-3 p-4">
+
+                <h2 className="eyebrow">Join this game</h2>
 
                 {!localStorage.getItem("username") ? (
                   <form
@@ -602,40 +587,35 @@ export default function PlayPage() {
 
                       joinGame()
                     }}
-                    className="space-y-2"
+                    className="space-y-3"
                   >
-                    <label className="block text-sm text-neutral-300">
+                    <label htmlFor="join-username" className="block text-sm text-zinc-300">
                       Enter your username
                     </label>
 
                     <input
+                      id="join-username"
                       type="text"
                       name="username"
                       placeholder="Your username"
-                      className="w-full px-3 py-2.5 rounded border border-neutral-700 bg-neutral-800 text-white focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      className="field w-full"
                       autoFocus
                     />
 
-                    <button
-                      type="submit"
-                      className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded"
-                    >
+                    <button type="submit" className="btn btn-primary w-full">
                       Join game
                     </button>
                   </form>
 
                 ) : (
 
-                  <button
-                    onClick={joinGame}
-                    className="w-full bg-green-600 hover:bg-green-700 text-white py-2.5 rounded"
-                  >
+                  <button onClick={joinGame} className="btn btn-primary w-full">
                     Join as {localStorage.getItem("username")}
                   </button>
 
                 )}
 
-              </div>
+              </section>
             )}
 
             {/* Turn Info */}
@@ -646,24 +626,25 @@ export default function PlayPage() {
 
               if (!role)
                 return (
-                  <div className="text-xs text-neutral-400">
+                  <div className="card flex items-center gap-2 px-4 py-3 text-xs text-zinc-400">
+                    <IconInfo className="h-4 w-4" />
                     Spectating
                   </div>
                 )
 
               return (
-                <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 shadow-inner text-center space-y-2">
+                <div className="card space-y-2.5 p-4 text-center">
 
-                  <div className="text-xs font-semibold text-green-400">
+                  <div className="text-xs font-semibold text-emerald-300">
                     You are playing ({role})
                   </div>
 
                   {myTurn ? (
-                    <div className="bg-blue-600 text-white text-xs py-1.5 rounded">
+                    <div className="rounded-lg bg-emerald-500 px-3 py-2 text-xs font-semibold text-emerald-950">
                       Your move ♟
                     </div>
                   ) : (
-                    <div className="bg-neutral-800 text-neutral-300 text-xs py-1.5 rounded">
+                    <div className="rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-300">
                       Waiting for opponent
                     </div>
                   )}
@@ -674,92 +655,172 @@ export default function PlayPage() {
             })()}
 
             {/* Move History */}
-            <div className="bg-neutral-900 border border-neutral-800 rounded-lg p-3 max-h-40 md:max-h-64 overflow-y-auto">
+            <section className="card flex max-h-72 flex-col p-3 md:max-h-96">
 
-              <h2 className="text-xs text-neutral-400 font-semibold mb-2">
-                Move History
-              </h2>
+              <h2 className="eyebrow px-1 pb-2 pt-1">Move History</h2>
 
-              <ul className="space-y-1">
+              {history.length === 0 ? (
 
-                {history
-                  .sort((a, b) => a.current_sequence - b.current_sequence)
-                  .map(move => {
+                <p className="px-1 py-6 text-center text-xs text-zinc-500">
+                  No moves yet
+                </p>
 
-                    const moveDate = new Date(move.created_at)
+              ) : (
 
-                    const timeStr = moveDate.toLocaleTimeString([], {
-                      hour: "2-digit",
-                      minute: "2-digit"
-                    })
+                <ul className="-mx-1 space-y-0.5 overflow-y-auto px-1">
 
-                    const usernameColor =
-                      move.side === "WHITE"
-                        ? "text-white"
-                        : "text-yellow-400"
+                  {[...history]
+                    .sort((a, b) => a.current_sequence - b.current_sequence)
+                    .map(move => {
 
-                    return (
-                      <li
-                        key={move.current_sequence}
-                        className="flex justify-between items-center text-xs hover:bg-neutral-800 rounded px-1 py-0.5"
-                      >
+                      const moveDate = new Date(move.created_at)
 
-                        <div className="flex items-center gap-1">
-                          <span className="text-neutral-400">
-                            {move.current_sequence}.
+                      const timeStr = moveDate.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit"
+                      })
+
+                      return (
+                        <li
+                          key={move.current_sequence}
+                          className="grid grid-cols-[1.75rem_minmax(0,1fr)_auto] items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition-colors hover:bg-white/5"
+                        >
+
+                          <span className="font-mono tabular-nums text-zinc-500">
+                            {move.current_sequence}
                           </span>
 
-                          <span className={`font-bold ${usernameColor}`}>
-                            {move.player?.username || "Unknown"}
-                          </span>
-                        </div>
-
-                        <div className="flex items-center gap-1">
-                          <ChessPiece piece={move.piece_from as any} />
-
-                          <span>
-                            {move.from} → {move.to}
+                          <span className="flex min-w-0 items-center gap-1.5">
+                            <span
+                              className={`h-2 w-2 shrink-0 rounded-full ${move.side === "WHITE" ? "bg-zinc-100" : "bg-amber-400"}`}
+                            />
+                            <span className="truncate font-medium text-zinc-200">
+                              {move.player?.username || "Unknown"}
+                            </span>
                           </span>
 
-                          {move.piece_to && (
-                            <ChessPiece piece={move.piece_to as any} />
-                          )}
+                          <span className="flex items-center gap-1.5 font-mono text-zinc-300">
 
-                          <span className="text-neutral-400 text-[10px] ml-1">
-                            ({timeStr})
+                            <span className="h-6 w-6 rounded-md bg-[#ebecd0] p-0.5">
+                              <ChessPiece piece={move.piece_from as any} />
+                            </span>
+
+                            <span>
+                              {move.from} → {move.to}
+                            </span>
+
+                            {move.piece_to && (
+                              <span className="h-6 w-6 rounded-md bg-[#ebecd0] p-0.5 opacity-80">
+                                <ChessPiece piece={move.piece_to as any} />
+                              </span>
+                            )}
+
+                            <span className="ml-1 text-[10px] text-zinc-500">
+                              {timeStr}
+                            </span>
+
                           </span>
-                        </div>
 
-                      </li>
-                    )
+                        </li>
+                      )
 
-                  })}
+                    })}
 
-              </ul>
+                </ul>
 
-            </div>
+              )}
 
-          </div>
+            </section>
+
+          </aside>
         </div>
       </div>
 
       {/* Toast */}
       {toast && (
-        <div
-          className={`fixed bottom-4 right-4 text-white text-sm px-4 py-2 rounded shadow-lg
-        ${toast.type === "error"
-              ? "bg-red-600"
+        <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4 sm:justify-end sm:px-6">
+          <div
+            role="status"
+            aria-live="polite"
+            className={`pointer-events-auto flex max-w-sm animate-toast-in items-center gap-2.5 rounded-xl border px-4 py-3 text-sm font-medium shadow-2xl backdrop-blur ${toast.type === "error"
+              ? "border-rose-400/30 bg-rose-950/90 text-rose-100"
               : toast.type === "success"
-                ? "bg-green-600"
-                : "bg-blue-600"
-            }`}
-        >
-          {toast.message}
+                ? "border-emerald-400/30 bg-emerald-950/90 text-emerald-100"
+                : "border-sky-400/30 bg-slate-900/90 text-sky-100"
+              }`}
+          >
+            {toast.type === "error" ? (
+              <IconAlert className="h-4 w-4 shrink-0 text-rose-300" />
+            ) : toast.type === "success" ? (
+              <IconCheck className="h-4 w-4 shrink-0 text-emerald-300" />
+            ) : (
+              <IconInfo className="h-4 w-4 shrink-0 text-sky-300" />
+            )}
+            <span>{String(toast.message)}</span>
+          </div>
         </div>
       )}
     </div>
   );
 
+}
+
+function PlayerStrip({
+  side,
+  name,
+  placeholder,
+  active,
+  isYou,
+}: {
+  side: Side
+  name?: string
+  placeholder: string
+  active: boolean
+  isYou: boolean
+}) {
+  return (
+    <div
+      className={`flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors ${active
+        ? "border-emerald-400/40 bg-emerald-400/10"
+        : "border-white/10 bg-white/[0.03]"
+        }`}
+    >
+
+      <Avatar name={name} size={34} />
+
+      <div className="min-w-0 flex-1">
+
+        <div className="flex items-center gap-2">
+          <span className="truncate font-semibold text-zinc-100">
+            {name || placeholder}
+          </span>
+          {isYou && (
+            <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-300">
+              You
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5 text-xs text-zinc-500">
+          <span
+            className={`inline-block h-2.5 w-2.5 rounded-full ring-1 ${side === "WHITE"
+              ? "bg-zinc-100 ring-black/40"
+              : "bg-zinc-900 ring-white/30"
+              }`}
+          />
+          {side === "WHITE" ? "White" : "Black"}
+        </div>
+
+      </div>
+
+      {active && (
+        <span className="rounded-full bg-emerald-400/15 px-2.5 py-1 text-[11px] font-semibold text-emerald-300">
+          To move
+        </span>
+      )}
+
+    </div>
+  )
 }
 
 function getPlayerRole(game: any) {
@@ -812,14 +873,6 @@ function getUsernameAuthorization(username: string) {
     localStorage.setItem(key, token)
   }
   return token
-}
-
-const statusColors: Record<Status, string> = {
-  WAITING_FOR_OTHER_PLAYER: "text-yellow-400",
-  EXPIRED: "text-red-500",
-  CANCELED: "text-red-500",
-  PLAYING: "text-green-400",
-  FINISHED: "text-neutral-400",
 }
 
 
