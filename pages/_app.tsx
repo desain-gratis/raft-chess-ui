@@ -17,6 +17,7 @@ export default function App({ Component, pageProps }: AppProps) {
       " />
       <meta name="author" content="OkeChess" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
+      <meta name="theme-color" content="#0a0b0e" />
 
       {/* Favicon */}
       <link rel="icon" href="/favicon.svg" />

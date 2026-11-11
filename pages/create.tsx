@@ -2,6 +2,8 @@
 
 import React, { useEffect, useState } from "react"
 import { useRouter } from "next/router"
+import ChessPiece from "../components/ChessPieces"
+import { IconAlert, IconArrowLeft, Logo } from "../components/ui"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
 
@@ -187,83 +189,122 @@ export default function CreateGamePage() {
 
     return (
 
-        <div className="min-h-screen bg-neutral-950 text-neutral-200">
+        <div className="min-h-screen text-zinc-300">
 
-            <div className="max-w-md mx-auto px-4 py-6">
+            <div className="mx-auto max-w-md px-4 py-8 sm:py-14">
 
                 {/* HEADER */}
-                <div className="flex items-center justify-between mb-6">
+                <button
+                    type="button"
+                    onClick={() => router.push("/")}
+                    className="btn btn-ghost btn-sm -ml-2 mb-6"
+                >
+                    <IconArrowLeft className="h-4 w-4" />
+                    Lobby
+                </button>
 
-                    <h1 className="text-xl font-semibold text-blue-400">
-                        Create Game
-                    </h1>
+                <div className="mb-7 flex items-center gap-3.5">
 
-                    <button
-                        onClick={() => router.push("/")}
-                        className="text-sm px-3 py-1.5 rounded border border-neutral-700 hover:bg-neutral-800"
-                    >
-                        Lobby
-                    </button>
+                    <Logo />
+
+                    <div>
+                        <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">
+                            Create Game
+                        </h1>
+                        <p className="text-sm text-zinc-500">
+                            Pick a side, then wait for an opponent to join.
+                        </p>
+                    </div>
 
                 </div>
 
                 {/* ERROR MESSAGE */}
                 {error && (
-                    <div className="mb-4 px-3 py-2 rounded border border-red-800 bg-red-900/40 text-red-300 text-sm">
-                        {error}
+                    <div
+                        role="alert"
+                        className="mb-4 flex items-start gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+                    >
+                        <IconAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                        <span>{String(error)}</span>
                     </div>
                 )}
 
                 {/* FORM CARD */}
-                <div className="bg-neutral-900 border border-neutral-800 rounded-xl shadow-xl p-5 sm:p-6">
+                <div className="card animate-fade-up p-5 sm:p-6">
 
-                    <form onSubmit={createGame} className="space-y-5">
+                    <form onSubmit={createGame} className="space-y-6">
 
                         {/* USERNAME */}
                         <div>
 
-                            <label className="block text-sm text-neutral-400 mb-1">
+                            <label htmlFor="username" className="mb-1.5 block text-sm font-medium text-zinc-300">
                                 Username
                             </label>
 
                             <input
+                                id="username"
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 required
                                 placeholder="Enter your username"
-                                className="w-full px-3 py-2.5 rounded-lg bg-neutral-800 text-white border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"
+                                className="field w-full"
                             />
 
                         </div>
 
                         {/* SIDE */}
-                        <div>
+                        <fieldset>
 
-                            <label className="block text-sm text-neutral-400 mb-1">
+                            <legend className="mb-1.5 block text-sm font-medium text-zinc-300">
                                 Your Side
-                            </label>
+                            </legend>
 
-                            <select
-                                value={side}
-                                onChange={(e) => setSide(e.target.value)}
-                                className="w-full px-3 py-2.5 rounded-lg bg-neutral-800 text-white border border-neutral-700 focus:outline-none focus:ring-2 focus:ring-green-500"
-                            >
-                                <option value="WHITE">White</option>
-                                <option value="BLACK">Black</option>
-                            </select>
+                            <div className="grid grid-cols-2 gap-3">
 
-                        </div>
+                                {SIDE_OPTIONS.map((opt) => (
+                                    <label key={opt.value} className="cursor-pointer">
+
+                                        <input
+                                            type="radio"
+                                            name="side"
+                                            value={opt.value}
+                                            checked={side === opt.value}
+                                            onChange={() => setSide(opt.value)}
+                                            className="peer sr-only"
+                                        />
+
+                                        <span className="flex flex-col items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-4 text-center transition hover:bg-white/[0.06] peer-checked:border-emerald-400/60 peer-checked:bg-emerald-400/10 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/60">
+
+                                            <span className="h-11 w-11 rounded-lg bg-[#ebecd0] p-1 shadow-inner">
+                                                <ChessPiece piece={opt.piece} />
+                                            </span>
+
+                                            <span className="text-sm font-semibold text-zinc-100">
+                                                {opt.label}
+                                            </span>
+
+                                            <span className="text-[11px] text-zinc-500">
+                                                {opt.hint}
+                                            </span>
+
+                                        </span>
+
+                                    </label>
+                                ))}
+
+                            </div>
+
+                        </fieldset>
 
                         {/* CREATE BUTTON */}
                         <button
                             type="submit"
                             disabled={loading}
-                            className={`w-full rounded-lg py-2.5 font-medium text-white transition
-                                ${loading
-                                    ? "bg-neutral-700 cursor-not-allowed"
-                                    : "bg-green-600 hover:bg-green-700 active:scale-[0.99]"
-                                }`}
+                            className="btn btn-primary btn-lg w-full"
                         >
+                            {loading && (
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent" />
+                            )}
                             {loading ? "Creating..." : "Create Game"}
                         </button>
 
@@ -277,3 +318,8 @@ export default function CreateGamePage() {
 
     )
 }
+
+const SIDE_OPTIONS = [
+    { value: "WHITE", label: "White", hint: "Moves first", piece: "K" },
+    { value: "BLACK", label: "Black", hint: "Moves second", piece: "k" },
+] as const

@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import FlexSearch from "flexsearch"
 import Credits from "../components/Credits"
+import { Avatar, ConnectionPill, IconAlert, IconGrid, IconPlus, IconSearch, Logo, StatusBadge } from "../components/ui"
+import { formatLocalDateTime, formatRelativeTime } from "../lib/time"
 import { useWebSocket } from "../src/hooks/useWebsocket"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
@@ -199,75 +201,90 @@ export default function Lobby() {
 
     gameList.sort((a, b) => Number(b.id) - Number(a.id))
 
-    function statusDot() {
+    const rows: Array<Game | null> = loading ? new Array<null>(6).fill(null) : gameList
 
-        if (wsStatus === "connected")
-            return <span className="text-green-400">● connected</span>
-
-        if (wsStatus === "connecting")
-            return <span className="text-yellow-400">● connecting</span>
-
-        if (wsStatus === "reconnecting")
-            return <span className="text-orange-400">● reconnecting</span>
-
-        return <span className="text-red-400">● offline</span>
-    }
+    const isEmpty = !loading && gameList.length === 0
 
     return (
 
-        <div className="min-h-screen bg-neutral-950 text-neutral-200 text-sm">
+        <div className="min-h-screen text-sm text-zinc-300">
 
-            <div className="max-w-5xl mx-auto px-4 py-5">
+            <div className="mx-auto max-w-5xl px-4 py-6 sm:py-10">
 
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-5">
+                {/* Header */}
+                <header className="mb-8 flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
 
-                    <h1 className="text-xl font-semibold tracking-tight text-blue-400">
-                        Chess Lobby
-                    </h1>
+                    <div className="flex items-center gap-3.5">
+
+                        <Logo />
+
+                        <div>
+                            <h1 className="text-2xl font-semibold tracking-tight text-zinc-50">
+                                Chess Lobby
+                            </h1>
+                            <p className="text-sm text-zinc-500">
+                                Join a live game, watch a match, or start your own.
+                            </p>
+                        </div>
+
+                    </div>
 
                     <div className="flex items-center gap-3">
 
-                        <span className="text-xs opacity-70">
-                            {statusDot()}
-                        </span>
+                        <ConnectionPill state={wsStatus} />
 
-                        <Link
-                            href="/create"
-                            className="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-500 text-sm font-medium text-center"
-                        >
+                        <Link href="/create" className="btn btn-primary">
+                            <IconPlus className="h-4 w-4" />
                             Create Game
                         </Link>
 
                     </div>
 
-                </div>
+                </header>
 
                 {/* Lobby Controls */}
+                <div className="card mb-5 flex flex-col gap-3 p-3 md:flex-row md:items-center">
 
-                <div className="flex flex-col md:flex-row gap-2 mb-4">
+                    <div className="relative flex-1">
 
-                    <input
-                        placeholder="Search game id / host"
-                        value={query}
-                        onChange={e => setQuery(e.target.value)}
-                        className="flex-1 bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
-                    />
+                        <IconSearch className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
 
-                    <select
-                        value={statusFilter}
-                        onChange={e => setStatusFilter(e.target.value)}
-                        className="bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
+                        <input
+                            placeholder="Search game id / host"
+                            aria-label="Search games"
+                            value={query}
+                            onChange={e => setQuery(e.target.value)}
+                            className="field w-full pl-9"
+                        />
+
+                    </div>
+
+                    <div
+                        role="group"
+                        aria-label="Filter by status"
+                        className="flex gap-1 overflow-x-auto rounded-xl bg-black/30 p-1"
                     >
-                        <option value="ALL">All</option>
-                        <option value="WAITING_FOR_OTHER_PLAYER">Waiting</option>
-                        <option value="PLAYING">Playing</option>
-                        <option value="FINISHED">Finished</option>
-                    </select>
+                        {STATUS_OPTIONS.map(([value, label]) => (
+                            <button
+                                key={value}
+                                type="button"
+                                aria-pressed={statusFilter === value}
+                                onClick={() => setStatusFilter(value)}
+                                className={`whitespace-nowrap rounded-lg px-3 py-1.5 text-xs font-medium transition ${statusFilter === value
+                                    ? "bg-white/10 text-zinc-50 shadow-sm"
+                                    : "text-zinc-400 hover:text-zinc-200"
+                                    }`}
+                            >
+                                {label}
+                            </button>
+                        ))}
+                    </div>
 
                     <select
                         value={dateFilter}
+                        aria-label="Filter by date"
                         onChange={e => setDateFilter(e.target.value)}
-                        className="bg-neutral-900 border border-neutral-800 rounded px-3 py-2 text-xs"
+                        className="field"
                     >
                         <option value="1d">Past 1 day</option>
                         <option value="7d">Past 7 days</option>
@@ -275,241 +292,291 @@ export default function Lobby() {
                         <option value="all">All time</option>
                     </select>
 
-
-
-                    <label className="flex items-center gap-2 text-xs px-2">
+                    <label className="flex cursor-pointer select-none items-center gap-2.5 px-1 text-xs font-medium text-zinc-300">
                         <input
                             type="checkbox"
+                            className="peer sr-only"
                             checked={showMyGames}
                             onChange={e => setShowMyGames(e.target.checked)}
                         />
+                        <span className="relative h-5 w-9 shrink-0 rounded-full bg-white/10 transition-colors after:absolute after:left-0.5 after:top-0.5 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition-transform peer-checked:bg-emerald-500 peer-checked:after:translate-x-4 peer-focus-visible:ring-2 peer-focus-visible:ring-emerald-400/60" />
                         My games
                     </label>
 
                 </div>
 
                 {apiError && (
-                    <div className="bg-red-900/40 border border-red-800 text-red-300 px-3 py-2 rounded mb-3 text-xs">
+                    <div
+                        role="alert"
+                        className="mb-4 flex items-center gap-2.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200"
+                    >
+                        <IconAlert className="h-4 w-4 shrink-0" />
                         Server unreachable. Lobby may be outdated.
                     </div>
                 )}
 
-                {/* MOBILE LIST */}
-                <div className="space-y-2 md:hidden">
+                {isEmpty ? (
+                    <EmptyState hasGames={games.size > 0} />
+                ) : (
+                    <>
 
-                    {(loading ? new Array(6).fill(null) : gameList).map((game, i) => {
+                        {/* MOBILE LIST */}
+                        <div className="space-y-3 md:hidden">
 
-                        if (!game)
-                            return (
-                                <div
-                                    key={i}
-                                    className="h-16 bg-neutral-900 border border-neutral-800 rounded animate-pulse"
-                                />
-                            )
-
-                        const host = game.request?.player?.username || "Anonymous"
-
-                        const white = game.state?.player?.WHITE?.username
-                        const black = game.state?.player?.BLACK?.username
-
-                        const opponent = white === host ? black : white
-
-                        const status = game.state?.status
-                        const winner = game.state?.winner?.username
-                        const result = game.state?.result
-
-                        const isPlayer = isParticipating(game)
-
-                        return (
-                            <div
-                                key={game.id}
-                                className="border border-neutral-800 rounded px-3 py-2 bg-neutral-900"
-                            >
-
-                                <div className="flex justify-between text-xs">
-
-                                    <span className="font-mono">
-                                        #{game.id}
-                                    </span>
-
-                                    <span
-                                        className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium
-        ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-500/10 text-yellow-400"}
-        ${status === "PLAYING" && "bg-green-500/10 text-green-400"}
-        ${status === "FINISHED" && "bg-blue-500/10 text-blue-400"}
-    `}
-                                    >
-                                        <span
-                                            className={`w-1.5 h-1.5 rounded-full
-            ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-400"}
-            ${status === "PLAYING" && "bg-green-400"}
-            ${status === "FINISHED" && "bg-blue-400"}
-        `}
-                                        />
-                                        {status === "WAITING_FOR_OTHER_PLAYER" && "Waiting"}
-                                        {status === "PLAYING" && "Playing"}
-                                        {status === "FINISHED" && "Finished"}
-                                    </span>
-
-                                </div>
-
-                                <div className="text-sm">
-                                    {host} vs {opponent || "-"}
-                                </div>
-
-                                {status === "FINISHED" && (
-                                    <div className="text-xs text-emerald-400">
-                                        {result} {winner ? `• ${winner}` : ""}
-                                    </div>
-                                )}
-
-                                <Link
-                                    href={`/play?id=${game.id}`}
-                                    className={`block text-center mt-1 rounded text-xs py-1
-          ${status === "PLAYING"
-                                            ? isPlayer
-                                                ? "bg-green-600"
-                                                : "bg-blue-600"
-                                            : "bg-neutral-800"
-                                        }`}
-                                >
-                                    {status === "PLAYING"
-                                        ? isPlayer ? "Play" : "Watch"
-                                        : "View"}
-                                </Link>
-
-                            </div>
-                        )
-                    })}
-
-                </div>
-
-
-                {/* DESKTOP TABLE */}
-                <div className="hidden md:block overflow-hidden border border-neutral-800 rounded-md">
-
-                    <table className="w-full text-sm">
-
-                        <thead className="bg-neutral-900 text-neutral-400 text-xs uppercase">
-                            <tr>
-                                <th className="text-left px-3 py-2">Game</th>
-                                <th className="text-left px-3 py-2">Host</th>
-                                <th className="text-left px-3 py-2">Opponent</th>
-                                <th className="text-left px-3 py-2">Status</th>
-                                <th className="text-left px-3 py-2">Result</th>
-                                <th className="text-right px-3 py-2"></th>
-                            </tr>
-                        </thead>
-
-                        <tbody>
-
-                            {(loading ? new Array(6).fill(null) : gameList).map((game, i) => {
+                            {rows.map((game, i) => {
 
                                 if (!game)
                                     return (
-                                        <tr key={i} className="border-t border-neutral-900">
-                                            <td colSpan={6} className="px-3 py-3">
-                                                <div className="h-4 bg-neutral-800 rounded animate-pulse" />
-                                            </td>
-                                        </tr>
+                                        <div key={i} className="skeleton h-28 rounded-2xl" />
                                     )
 
-                                const host = game.request?.player?.username || "Anonymous"
-
-                                const white = game.state?.player?.WHITE?.username
-                                const black = game.state?.player?.BLACK?.username
-
-                                const opponent = white === host ? black : white
-
-                                const status = game.state?.status
-                                const winner = game.state?.winner?.username
-                                const result = game.state?.result
+                                const { host, opponent, status, winner, result } = summarize(game)
 
                                 const isPlayer = isParticipating(game)
 
                                 return (
+                                    <article key={game.id} className="card animate-fade-up p-4">
 
-                                    <tr
-                                        key={game.id}
-                                        className="border-t border-neutral-900 hover:bg-neutral-900/60"
-                                    >
+                                        <div className="flex items-start justify-between gap-3">
 
-                                        <td className="px-3 py-2 font-mono text-neutral-300">
-                                            #{game.id}
-                                        </td>
-
-                                        <td className="px-3 py-2">
-                                            {host}
-                                        </td>
-
-                                        <td className="px-3 py-2">
-                                            {opponent || "-"}
-                                        </td>
-
-                                        <td className="px-3 py-2">
-                                            <span
-                                                className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-[11px] font-medium
-        ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-500/10 text-yellow-400"}
-        ${status === "PLAYING" && "bg-green-500/10 text-green-400"}
-        ${status === "FINISHED" && "bg-blue-500/10 text-blue-400"}
-    `}
-                                            >
-                                                <span
-                                                    className={`w-1.5 h-1.5 rounded-full
-            ${status === "WAITING_FOR_OTHER_PLAYER" && "bg-yellow-400"}
-            ${status === "PLAYING" && "bg-green-400"}
-            ${status === "FINISHED" && "bg-blue-400"}
-        `}
-                                                />
-                                                {status === "WAITING_FOR_OTHER_PLAYER" && "Waiting"}
-                                                {status === "PLAYING" && "Playing"}
-                                                {status === "FINISHED" && "Finished"}
-                                            </span>
-                                        </td>
-
-                                        <td className="px-3 py-2 text-emerald-400 text-xs">
-                                            {status === "FINISHED" && (
-                                                <div className="text-xs text-emerald-400">
-                                                    {result} {winner ? `• ${winner}` : ""}
+                                            <div>
+                                                <div className="font-mono text-sm text-zinc-100">
+                                                    #{game.id}
                                                 </div>
+                                                <div
+                                                    className="text-[11px] text-zinc-500"
+                                                    title={formatLocalDateTime(game.created_at)}
+                                                >
+                                                    {formatRelativeTime(game.created_at)}
+                                                </div>
+                                            </div>
+
+                                            <StatusBadge status={status} />
+
+                                        </div>
+
+                                        <div className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1.5 text-zinc-100">
+
+                                            <Avatar name={host} size={24} />
+                                            <span className="font-medium">{host}</span>
+
+                                            <span className="text-xs text-zinc-600">vs</span>
+
+                                            {opponent ? (
+                                                <>
+                                                    <Avatar name={opponent} size={24} />
+                                                    <span className="font-medium">{opponent}</span>
+                                                </>
+                                            ) : (
+                                                <span className="text-zinc-600">—</span>
                                             )}
-                                        </td>
 
-                                        <td className="px-3 py-2 text-right">
+                                        </div>
 
-                                            <Link
-                                                href={`/play?id=${game.id}`}
-                                                className={`px-3 py-1.5 rounded text-xs font-medium
-                ${status === "PLAYING"
-                                                        ? isPlayer
-                                                            ? "bg-green-600 hover:bg-green-500"
-                                                            : "bg-blue-600 hover:bg-blue-500"
-                                                        : "bg-neutral-800 hover:bg-neutral-700"
-                                                    }`}
-                                            >
+                                        {status === "FINISHED" && (
+                                            <div className="mt-2 text-xs text-emerald-400">
+                                                {result} {winner ? `• ${winner}` : ""}
+                                            </div>
+                                        )}
 
-                                                {status === "PLAYING"
-                                                    ? isPlayer ? "Play" : "Watch"
-                                                    : "View"}
+                                        <GameAction
+                                            id={game.id}
+                                            status={status}
+                                            isPlayer={isPlayer}
+                                            className="mt-4 w-full"
+                                        />
 
-                                            </Link>
-
-                                        </td>
-
-                                    </tr>
-
+                                    </article>
                                 )
-
                             })}
 
-                        </tbody>
+                        </div>
 
-                    </table>
+                        {/* DESKTOP TABLE */}
+                        <div className="card hidden overflow-hidden md:block">
 
-                </div>
+                            <table className="w-full text-sm">
+
+                                <thead>
+                                    <tr className="border-b border-white/10 text-left text-[11px] uppercase tracking-wider text-zinc-500">
+                                        <th className="px-4 py-3 font-medium">Game</th>
+                                        <th className="px-4 py-3 font-medium">Host</th>
+                                        <th className="px-4 py-3 font-medium">Opponent</th>
+                                        <th className="px-4 py-3 font-medium">Status</th>
+                                        <th className="px-4 py-3 font-medium">Result</th>
+                                        <th className="px-4 py-3 text-right font-medium">
+                                            <span className="sr-only">Action</span>
+                                        </th>
+                                    </tr>
+                                </thead>
+
+                                <tbody>
+
+                                    {rows.map((game, i) => {
+
+                                        if (!game)
+                                            return (
+                                                <tr key={i} className="border-t border-white/5">
+                                                    <td colSpan={6} className="px-4 py-3.5">
+                                                        <div className="skeleton h-5" />
+                                                    </td>
+                                                </tr>
+                                            )
+
+                                        const { host, opponent, status, winner, result } = summarize(game)
+
+                                        const isPlayer = isParticipating(game)
+
+                                        return (
+
+                                            <tr
+                                                key={game.id}
+                                                className="border-t border-white/5 transition-colors hover:bg-white/[0.035]"
+                                            >
+
+                                                <td className="px-4 py-3">
+                                                    <div className="font-mono text-zinc-100">
+                                                        #{game.id}
+                                                    </div>
+                                                    <div
+                                                        className="text-[11px] text-zinc-500"
+                                                        title={formatLocalDateTime(game.created_at)}
+                                                    >
+                                                        {formatRelativeTime(game.created_at)}
+                                                    </div>
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    <div className="flex items-center gap-2.5">
+                                                        <Avatar name={host} />
+                                                        <span className="font-medium text-zinc-100">{host}</span>
+                                                    </div>
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    {opponent ? (
+                                                        <div className="flex items-center gap-2.5">
+                                                            <Avatar name={opponent} />
+                                                            <span className="font-medium text-zinc-100">{opponent}</span>
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-zinc-600">—</span>
+                                                    )}
+                                                </td>
+
+                                                <td className="px-4 py-3">
+                                                    <StatusBadge status={status} />
+                                                </td>
+
+                                                <td className="px-4 py-3 text-xs text-emerald-400">
+                                                    {status === "FINISHED" && (
+                                                        <div>
+                                                            {result} {winner ? `• ${winner}` : ""}
+                                                        </div>
+                                                    )}
+                                                </td>
+
+                                                <td className="px-4 py-3 text-right">
+                                                    <GameAction
+                                                        id={game.id}
+                                                        status={status}
+                                                        isPlayer={isPlayer}
+                                                        className="min-w-[72px]"
+                                                    />
+                                                </td>
+
+                                            </tr>
+
+                                        )
+
+                                    })}
+
+                                </tbody>
+
+                            </table>
+
+                        </div>
+
+                    </>
+                )}
 
             </div>
             <Credits />
+        </div>
+    )
+}
+
+const STATUS_OPTIONS = [
+    ["ALL", "All"],
+    ["WAITING_FOR_OTHER_PLAYER", "Waiting"],
+    ["PLAYING", "Playing"],
+    ["FINISHED", "Finished"],
+] as const
+
+function summarize(game: Game) {
+    const host = game.request?.player?.username || "Anonymous"
+
+    const white = game.state?.player?.WHITE?.username
+    const black = game.state?.player?.BLACK?.username
+
+    const opponent = white === host ? black : white
+
+    return {
+        host,
+        opponent,
+        status: game.state?.status,
+        winner: game.state?.winner?.username,
+        result: game.state?.result,
+    }
+}
+
+function GameAction({
+    id,
+    status,
+    isPlayer,
+    className = "",
+}: {
+    id: string
+    status?: string
+    isPlayer: boolean
+    className?: string
+}) {
+    const playing = status === "PLAYING"
+
+    const label = playing ? (isPlayer ? "Play" : "Watch") : "View"
+    const tone = playing ? (isPlayer ? "btn-primary" : "btn-info") : "btn-secondary"
+
+    return (
+        <Link href={`/play?id=${id}`} className={`btn btn-sm ${tone} ${className}`}>
+            {label}
+        </Link>
+    )
+}
+
+function EmptyState({ hasGames }: { hasGames: boolean }) {
+    return (
+        <div className="card flex flex-col items-center gap-3 px-6 py-14 text-center">
+
+            <span className="grid h-12 w-12 place-items-center rounded-2xl bg-white/5 text-zinc-400 ring-1 ring-white/10">
+                <IconGrid className="h-6 w-6" />
+            </span>
+
+            <div>
+                <p className="font-semibold text-zinc-100">
+                    {hasGames ? "No games match your filters" : "No games yet"}
+                </p>
+                <p className="mt-1 text-zinc-500">
+                    {hasGames
+                        ? "Try a different search, status or date range."
+                        : "Be the first to start one and wait for an opponent."}
+                </p>
+            </div>
+
+            <Link href="/create" className="btn btn-primary btn-sm mt-2">
+                <IconPlus className="h-4 w-4" />
+                Create Game
+            </Link>
+
         </div>
     )
 }

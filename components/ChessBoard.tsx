@@ -160,55 +160,91 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
         board = [...board].reverse().map(r => [...r].reverse());
     }
 
+    // Square currently under the dragged piece (visual feedback only)
+    const hoverSquare = dragged ? squareFromPointer(pointer.x, pointer.y) : null;
+
     return (
 
         <div className="relative select-none touch-none">
 
-            <div
-                ref={boardRef}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
-                onPointerCancel={() => setDragged(null)}
-                className="grid grid-cols-8 w-full max-w-[520px] aspect-square bg-neutral-900 p-1 shadow-2xl mx-auto"
-            >
+            <div className="mx-auto w-full max-w-[560px] rounded-2xl bg-gradient-to-b from-zinc-700/60 to-zinc-900 p-2 shadow-board ring-1 ring-white/10 sm:p-3">
 
-                {board.map((row, r) =>
-                    row.map((piece, c) => {
+                <div
+                    ref={boardRef}
+                    onPointerMove={handlePointerMove}
+                    onPointerUp={handlePointerUp}
+                    onPointerCancel={() => setDragged(null)}
+                    className="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-lg"
+                >
 
-                        const square = squareName(
-                            side === "BLACK" ? 7 - r : r,
-                            side === "BLACK" ? 7 - c : c
-                        );
+                    {board.map((row, r) =>
+                        row.map((piece, c) => {
 
-                        const isDark = (r + c) % 2 !== 0;
-                        const isOriginal = dragged?.from === square;
+                            const square = squareName(
+                                side === "BLACK" ? 7 - r : r,
+                                side === "BLACK" ? 7 - c : c
+                            );
 
-                        return (
+                            const isDark = (r + c) % 2 !== 0;
+                            const isOriginal = dragged?.from === square;
+                            const isHover = !!dragged && hoverSquare === square && !isOriginal;
 
-                            <div
-                                key={square}
-                                className={`relative aspect-square flex items-center justify-center ${isDark ? "bg-[#769656]" : "bg-[#eeeed2]"}`}
-                            >
+                            // rank numbers down the left edge, file letters along the bottom
+                            const showRank = c === 0;
+                            const showFile = r === 7;
 
-                                {piece !== "\0" && (
+                            const coordTone = isDark ? "text-[#ebecd0]" : "text-[#739552]";
 
-                                    <div
-                                        onPointerDown={(e) => handlePointerDown(e, piece as Piece, square)}
-                                        className={`w-full h-full flex items-center justify-center ${isOriginal ? "opacity-20" : ""}`}
-                                    >
+                            return (
 
-                                        <ChessPiece piece={piece as Piece} />
+                                <div
+                                    key={square}
+                                    className={`relative flex aspect-square items-center justify-center ${isDark ? "bg-[#739552]" : "bg-[#ebecd0]"}`}
+                                >
 
-                                    </div>
+                                    {isOriginal && (
+                                        <span className="pointer-events-none absolute inset-0 bg-yellow-300/40" />
+                                    )}
 
-                                )}
+                                    {isHover && (
+                                        <span className="pointer-events-none absolute inset-0 bg-white/10 shadow-[inset_0_0_0_3px_rgba(255,255,255,0.7)]" />
+                                    )}
 
-                            </div>
+                                    {showRank && (
+                                        <span className={`pointer-events-none absolute left-[3px] top-[2px] text-[9px] font-bold leading-none sm:text-[11px] ${coordTone}`}>
+                                            {square[1]}
+                                        </span>
+                                    )}
 
-                        );
+                                    {showFile && (
+                                        <span className={`pointer-events-none absolute bottom-[2px] right-[3px] text-[9px] font-bold leading-none sm:text-[11px] ${coordTone}`}>
+                                            {square[0]}
+                                        </span>
+                                    )}
 
-                    })
-                )}
+                                    {piece !== "\0" && (
+
+                                        <div
+                                            onPointerDown={(e) => handlePointerDown(e, piece as Piece, square)}
+                                            className={`relative z-10 flex h-full w-full cursor-grab items-center justify-center active:cursor-grabbing ${isOriginal ? "opacity-20" : ""}`}
+                                        >
+
+                                            <div className="h-[88%] w-[88%]">
+                                                <ChessPiece piece={piece as Piece} />
+                                            </div>
+
+                                        </div>
+
+                                    )}
+
+                                </div>
+
+                            );
+
+                        })
+                    )}
+
+                </div>
 
             </div>
 
@@ -219,11 +255,12 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
                         position: "fixed",
                         left: pointer.x,
                         top: pointer.y,
-                        transform: "translate(-50%, -50%)",
+                        transform: "translate(-50%, -50%) scale(1.15)",
                         pointerEvents: "none",
                         zIndex: 9999,
-                        width: squareSize,
-                        height: squareSize
+                        width: squareSize * 0.88,
+                        height: squareSize * 0.88,
+                        filter: "drop-shadow(0 10px 10px rgba(0,0,0,.45))"
                     }}
                 >
 
