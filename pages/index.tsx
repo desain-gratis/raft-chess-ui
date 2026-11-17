@@ -6,6 +6,7 @@ import FlexSearch from "flexsearch"
 import Credits from "../components/Credits"
 import { Avatar, ConnectionPill, IconAlert, IconGrid, IconPlus, IconSearch, Logo, StatusBadge } from "../components/ui"
 import { formatLocalDateTime, formatRelativeTime } from "../lib/time"
+import { buildWsUrl, useWsEndpoint } from "../lib/wsEndpoint"
 import { useWebSocket } from "../src/hooks/useWebsocket"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411"
@@ -16,12 +17,6 @@ function getApiBase() {
     if (typeof window === "undefined") return `http://${API_HOST}`
     const protocol = window.location.protocol === "https:" ? "https" : "http"
     return `${protocol}://${API_HOST}`
-}
-
-function getWsUrl(namespace: string) {
-    if (typeof window === "undefined") return `ws://${WS_HOST}/ws?namespace=${namespace}`
-    const protocol = window.location.protocol === "https:" ? "wss" : "ws"
-    return `${protocol}://${WS_HOST}/ws?namespace=${namespace}`
 }
 
 const NAMESPACE = "dg"
@@ -125,7 +120,10 @@ export default function Lobby() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [])
 
-    const wsUrl = getWsUrl(NAMESPACE)
+    // WebSocket host comes from the backend (/get-ws-endpoint); null until resolved
+    const { endpoint: wsEndpoint, refresh: refreshWsEndpoint } = useWsEndpoint(getApiBase(), WS_HOST)
+
+    const wsUrl = wsEndpoint ? buildWsUrl(wsEndpoint, { namespace: NAMESPACE }) : null
 
     useWebSocket({
         url: wsUrl,
@@ -146,7 +144,10 @@ export default function Lobby() {
         },
         // 👇 we piggyback on lifecycle via small tweak
         onOpen: () => setWsStatus("connected"),
-        onClose: () => setWsStatus("reconnecting"),
+        onClose: () => {
+            setWsStatus("reconnecting")
+            refreshWsEndpoint()
+        },
     })
 
     let gameList = Array.from(games.values())
