@@ -379,7 +379,7 @@ export default function PlayPage() {
   }, [id])
 
   // WebSocket host comes from the backend (/get-ws-endpoint); null until resolved
-  const { endpoint: wsEndpoint, refresh: refreshWsEndpoint } = useWsEndpoint(getApiBase(), WS_HOST)
+  const { endpoint: wsEndpoint, onConnected: wsOpened, onDisconnected: wsDropped } = useWsEndpoint(getApiBase(), WS_HOST)
 
   const wsUrl = id && wsEndpoint
     ? buildWsUrl(wsEndpoint, { namespace: NAMESPACE, id: String(id) })
@@ -389,6 +389,7 @@ export default function PlayPage() {
     url: wsUrl,
     onOpen: () => {
       setWsConnected("connected")
+      wsOpened()
 
       if (id) {
         loadGame(String(id))
@@ -396,7 +397,7 @@ export default function PlayPage() {
     },
     onClose: () => {
       setWsConnected("disconnected")
-      refreshWsEndpoint()
+      wsDropped()
     },
     onMessage: (ev) => {
       const msg = JSON.parse(ev.data)

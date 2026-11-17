@@ -9,8 +9,15 @@ import { useCallback, useEffect, useRef, useState } from "react"
  */
 const WS_ENDPOINT_PATH = "/get-ws-endpoint"
 
-/** Don't hammer the endpoint when the socket keeps failing. */
-const MIN_REFRESH_INTERVAL_MS = 5000
+/**
+ * Reconnect attempts keep going to the SAME server (the one we looked up). Only after the
+ * connection has been continuously down for this long do we ask the backend for another
+ * endpoint. Override with NEXT_PUBLIC_WS_FAILOVER_MS.
+ */
+const FAILOVER_AFTER_MS = Number(process.env.NEXT_PUBLIC_WS_FAILOVER_MS) || 60_000
+
+/** Never look the endpoint up more often than this, even while failing over. */
+const MIN_LOOKUP_INTERVAL_MS = 5000
 
 export async function fetchWsEndpoint(apiBase: string): Promise<string> {
     const res = await fetch(`${apiBase}${WS_ENDPOINT_PATH}`, { cache: "no-store" })
@@ -49,13 +56,16 @@ export function buildWsUrl(endpoint: string, params: Record<string, string>): st
  * Resolves the WebSocket endpoint once on mount.
  *  - `endpoint` is null until resolved, so callers should not connect yet.
  *  - If the lookup fails, falls back to the legacy global host so the app keeps working.
- *  - `refresh()` re-resolves (rate limited); call it when a connection drops so the
- *    client can move to another server if its previous one is gone.
+ *  - Call `onConnected()` / `onDisconnected()` from the socket lifecycle. Reconnects stay on
+ *    the current server; once it has been down for FAILOVER_AFTER_MS, the endpoint is looked
+ *    up again so the client can move to another server.
  */
 export function useWsEndpoint(apiBase: string, fallbackHost: string) {
 
     const [endpoint, setEndpoint] = useState<string | null>(null)
 
+    const current = useRef<string | null>(null)
+    const downSince = useRef<number | null>(null)
     const lastFetchAt = useRef(0)
     const inFlight = useRef(false)
     const alive = useRef(true)
@@ -68,11 +78,24 @@ export function useWsEndpoint(apiBase: string, fallbackHost: string) {
 
         try {
             const resolved = await fetchWsEndpoint(apiBase)
-            if (alive.current) setEndpoint(resolved)
+            if (alive.current) {
+                if (resolved !== current.current) {
+                    // moving to a different server: give it a fresh failover window
+                    current.current = resolved
+                    downSince.current = null
+                }
+                setEndpoint(resolved)
+            }
         } catch (err) {
             console.error("Could not resolve websocket endpoint, using fallback host", err)
             // keep a previously working endpoint if we have one
-            if (alive.current) setEndpoint((prev) => prev ?? legacyWsEndpoint(fallbackHost))
+            if (alive.current) {
+                setEndpoint((prev) => {
+                    const next = prev ?? legacyWsEndpoint(fallbackHost)
+                    current.current = next
+                    return next
+                })
+            }
         } finally {
             inFlight.current = false
         }
@@ -87,10 +110,22 @@ export function useWsEndpoint(apiBase: string, fallbackHost: string) {
         }
     }, [load])
 
-    const refresh = useCallback(() => {
-        if (Date.now() - lastFetchAt.current < MIN_REFRESH_INTERVAL_MS) return
+    /** Socket opened: the current server is healthy, reset the failover clock. */
+    const onConnected = useCallback(() => {
+        downSince.current = null
+    }, [])
+
+    /** Socket closed: the hook keeps retrying the same URL; fail over only after a sustained outage. */
+    const onDisconnected = useCallback(() => {
+        const now = Date.now()
+
+        if (downSince.current === null) downSince.current = now
+
+        if (now - downSince.current < FAILOVER_AFTER_MS) return
+        if (now - lastFetchAt.current < MIN_LOOKUP_INTERVAL_MS) return
+
         void load()
     }, [load])
 
-    return { endpoint, refresh }
+    return { endpoint, onConnected, onDisconnected }
 }

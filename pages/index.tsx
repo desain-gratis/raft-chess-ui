@@ -121,7 +121,7 @@ export default function Lobby() {
     }, [])
 
     // WebSocket host comes from the backend (/get-ws-endpoint); null until resolved
-    const { endpoint: wsEndpoint, refresh: refreshWsEndpoint } = useWsEndpoint(getApiBase(), WS_HOST)
+    const { endpoint: wsEndpoint, onConnected: wsConnected, onDisconnected: wsDisconnected } = useWsEndpoint(getApiBase(), WS_HOST)
 
     const wsUrl = wsEndpoint ? buildWsUrl(wsEndpoint, { namespace: NAMESPACE }) : null
 
@@ -143,10 +143,13 @@ export default function Lobby() {
             }
         },
         // 👇 we piggyback on lifecycle via small tweak
-        onOpen: () => setWsStatus("connected"),
+        onOpen: () => {
+            setWsStatus("connected")
+            wsConnected()
+        },
         onClose: () => {
             setWsStatus("reconnecting")
-            refreshWsEndpoint()
+            wsDisconnected()
         },
     })
 
