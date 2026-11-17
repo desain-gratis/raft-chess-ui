@@ -6,6 +6,7 @@ import { useEffect, useState } from "react"
 import ChessBoard from "../components/ChessBoard"
 import ChessPiece from "../components/ChessPieces"
 import { useWebSocket } from "../src/hooks/useWebsocket"
+import { buildWsUrl, useWsEndpoint } from "../lib/wsEndpoint"
 import { Avatar, ConnectionPill, IconAlert, IconArrowLeft, IconCheck, IconInfo, Logo, StatusBadge } from "../components/ui"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
@@ -19,12 +20,6 @@ function getApiBase() {
   if (typeof window === "undefined") return `http://${API_HOST}`; // fallback for SSR
   const protocol = window.location.protocol === "https:" ? "https" : "http";
   return `${protocol}://${API_HOST}`;
-}
-
-function getWsUrl(gameId: string, namespace: string) {
-  if (typeof window === "undefined") return `ws://${WS_HOST}/ws?namespace=${namespace}&id=${gameId}`;
-  const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-  return `${protocol}://${WS_HOST}/ws?namespace=${namespace}&id=${gameId}`;
 }
 
 
@@ -383,12 +378,18 @@ export default function PlayPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  const wsUrl = id ? getWsUrl(String(id), NAMESPACE) : null
+  // WebSocket host comes from the backend (/get-ws-endpoint); null until resolved
+  const { endpoint: wsEndpoint, onConnected: wsOpened, onDisconnected: wsDropped } = useWsEndpoint(getApiBase(), WS_HOST)
+
+  const wsUrl = id && wsEndpoint
+    ? buildWsUrl(wsEndpoint, { namespace: NAMESPACE, id: String(id) })
+    : null
 
   useWebSocket({
     url: wsUrl,
     onOpen: () => {
       setWsConnected("connected")
+      wsOpened()
 
       if (id) {
         loadGame(String(id))
@@ -396,6 +397,7 @@ export default function PlayPage() {
     },
     onClose: () => {
       setWsConnected("disconnected")
+      wsDropped()
     },
     onMessage: (ev) => {
       const msg = JSON.parse(ev.data)
