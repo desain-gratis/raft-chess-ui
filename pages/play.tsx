@@ -2,11 +2,14 @@
 
 import React from "react"
 import { useRouter } from "next/router"
+import Head from "next/head"
 import { useEffect, useState } from "react"
 import ChessBoard from "../components/ChessBoard"
 import ChessPiece from "../components/ChessPieces"
 import { useWebSocket } from "../src/hooks/useWebsocket"
 import { buildWsUrl, useWsEndpoint } from "../lib/wsEndpoint"
+import { ShareButton, ShareGamePanel } from "../components/ShareGame"
+import { SITE_URL, buildShareMessage } from "../lib/share"
 import { Avatar, ConnectionPill, IconAlert, IconArrowLeft, IconCheck, IconInfo, Logo, StatusBadge } from "../components/ui"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
@@ -428,6 +431,10 @@ export default function PlayPage() {
     }
   })
 
+  // Sharing: link + message are derived from the current game
+  const gameId = typeof id === "string" ? id : ""
+  const shareMessage = buildShareMessage(game, gameId)
+
   // The board is drawn from the user's side (BLACK flips it); mirror that for the player strips.
   const bottomSide: Side = userSide === "BLACK" ? "BLACK" : "WHITE"
   const topSide: Side = bottomSide === "WHITE" ? "BLACK" : "WHITE"
@@ -444,13 +451,28 @@ export default function PlayPage() {
 
   return (
     <div className="min-h-screen text-sm text-zinc-300">
+
+      {/* Social preview for shared links (crawlers need absolute URLs) */}
+      <Head>
+        <title>{gameId ? `Chess game #${gameId} – Online Chess (Catur)` : "Online Chess (Catur)"}</title>
+        <meta key="og:title" property="og:title" content="Join or watch a live chess game" />
+        <meta key="og:description" property="og:description" content="You've been invited to a real-time chess game. Open the link to play or watch, no login needed." />
+        <meta key="og:url" property="og:url" content={`${SITE_URL}/play/`} />
+        <meta key="og:image" property="og:image" content={`${SITE_URL}/preview.png`} />
+        <meta name="twitter:title" content="Join or watch a live chess game" />
+        <meta name="twitter:description" content="You've been invited to a real-time chess game. Open the link to play or watch." />
+        <meta name="twitter:image" content={`${SITE_URL}/preview.png`} />
+      </Head>
+
       <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 sm:py-6">
 
         {/* Header */}
         <header className="mb-6 flex items-center justify-between gap-3">
 
           <div className="flex min-w-0 items-center gap-3">
-            <Logo size={38} />
+            <div className="hidden sm:block">
+              <Logo size={38} />
+            </div>
             <div className="min-w-0">
               <div className="eyebrow">Game</div>
               <h1 className="truncate font-mono text-xl font-semibold text-zinc-50">
@@ -461,6 +483,8 @@ export default function PlayPage() {
 
           <div className="flex items-center gap-2.5">
             <ConnectionPill state={wsConnected} />
+
+            {gameId && <ShareButton gameId={gameId} message={shareMessage} />}
 
             <button
               onClick={() => router.push("/")}
@@ -566,6 +590,21 @@ export default function PlayPage() {
               )}
 
             </section>
+
+            {/* Invite (host waiting for an opponent) */}
+            {game?.state.status === "WAITING_FOR_OTHER_PLAYER" && gameId && getPlayerRole(game) && (
+              <section className="card animate-fade-up space-y-3 p-4">
+
+                <h2 className="eyebrow">Invite a friend</h2>
+
+                <p className="text-sm text-zinc-400">
+                  Send this link and the game starts as soon as they open it.
+                </p>
+
+                <ShareGamePanel gameId={gameId} message={shareMessage} />
+
+              </section>
+            )}
 
             {/* Join */}
             {game?.state.status === "WAITING_FOR_OTHER_PLAYER" && (

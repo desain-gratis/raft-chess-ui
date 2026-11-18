@@ -2,6 +2,7 @@ import React from "react"
 import type { AppProps } from "next/app"
 import '../styles/globals.css'
 import Head from "next/head"
+import { SITE_URL } from "../lib/share"
 
 export default function App({ Component, pageProps }: AppProps) {
   return <>
@@ -23,17 +24,17 @@ export default function App({ Component, pageProps }: AppProps) {
       <link rel="icon" href="/favicon.svg" />
 
       {/* Open Graph (Facebook, Discord, etc) */}
-      <meta property="og:title" content="Play Chess Online (Catur) – Real-Time Multiplayer" />
-      <meta property="og:description" content="Create and join chess games instantly. Play catur online with friends or random opponents. Play online chess (catur) gratis tanpa login. Buat game, main dengan teman, atau lawan pemain lain secara real-time. Hamood Habibi." />
+      <meta key="og:title" property="og:title" content="Play Chess Online (Catur) – Real-Time Multiplayer" />
+      <meta key="og:description" property="og:description" content="Create and join chess games instantly. Play catur online with friends or random opponents. Play online chess (catur) gratis tanpa login. Buat game, main dengan teman, atau lawan pemain lain secara real-time. Hamood Habibi." />
       <meta property="og:type" content="website" />
-      <meta property="og:url" content="https://chess.desain.gratis" />
-      <meta property="og:image" content="/preview.png" />
+      <meta key="og:url" property="og:url" content={SITE_URL} />
+      <meta key="og:image" property="og:image" content={`${SITE_URL}/preview.png`} />
 
       {/* Twitter */}
       <meta name="twitter:card" content="summary_large_image" />
       <meta name="twitter:title" content="Online Chess (Catur) Multiplayer" />
       <meta name="twitter:description" content="Fast and modern chess lobby. Play instantly. Play online chess (catur) gratis tanpa login. Buat game, main dengan teman, atau lawan pemain lain secara real-time." />
-      <meta name="twitter:image" content="/preview.png" />
+      <meta name="twitter:image" content={`${SITE_URL}/preview.png`} />
 
       {/* Language targeting */}
       <meta httpEquiv="content-language" content="en, id" />
