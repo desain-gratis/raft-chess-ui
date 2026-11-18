@@ -11,7 +11,7 @@ type SharePlayer = { username?: string } | undefined
 type ShareableGame = {
     state?: {
         status?: string
-        player?: { WHITE?: SharePlayer; BLACK?: SharePlayer }
+        player?: { WHITE?: SharePlayer; BLACK?: SharePlayer } | null
     }
 } | null | undefined
 
