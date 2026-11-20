@@ -10,7 +10,7 @@ import { useWebSocket } from "../src/hooks/useWebsocket"
 import { buildWsUrl, useWsEndpoint } from "../lib/wsEndpoint"
 import { ShareButton, ShareGamePanel } from "../components/ShareGame"
 import { SITE_URL, buildShareMessage } from "../lib/share"
-import { Avatar, ConnectionPill, IconAlert, IconArrowLeft, IconCheck, IconInfo, Logo, StatusBadge } from "../components/ui"
+import { Avatar, ConnectionPill, IconAlert, IconArrowLeft, IconBot, IconCheck, IconInfo, Logo, StatusBadge } from "../components/ui"
 
 const API_HOST = process.env.NEXT_PUBLIC_API_HOST || "localhost:9411";
 const WS_HOST = process.env.NEXT_PUBLIC_WS_HOST || "localhost:9411";
@@ -333,8 +333,15 @@ export default function PlayPage() {
   }
 
 
-  async function joinGame() {
-    if (!id) return
+  // Prevents double submits (join / play against bot) while a request is in flight
+  const [joining, setJoining] = useState(false)
+
+  /**
+   * Takes the open seat. With `bot: true` the player is the same as a normal join,
+   * plus `bot: true`, which asks the backend to play the opponent's side.
+   */
+  async function joinGame({ bot = false }: { bot?: boolean } = {}) {
+    if (!id || joining) return
 
     let username = localStorage.getItem("username")
     if (!username) return showToast("Username is required", "error")
@@ -354,20 +361,42 @@ export default function PlayPage() {
         username,
         username_auth: usernameAuth,
         authorization,
+        ...(bot ? { bot: true } : {}),
       },
     }
 
-    const res = await fetch(`${getApiBase()}/play`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "AntiBot-Fingerprint": fingerprint },
-      body: JSON.stringify(body),
-    })
+    setJoining(true)
 
-    if (res.ok) {
-      showToast("Joining game...")
-    } else {
-      showToast("Failed to join game", "error")
+    try {
+      const res = await fetch(`${getApiBase()}/play`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "AntiBot-Fingerprint": fingerprint },
+        body: JSON.stringify(body),
+      })
+
+      if (res.ok) {
+        showToast(bot ? "Starting game against bot..." : "Joining game...")
+      } else {
+        showToast(bot ? "Failed to start game against bot" : "Failed to join game", "error")
+      }
+    } catch (err) {
+      showToast("Network error", "error")
+    } finally {
+      setJoining(false)
     }
+  }
+
+  // Shared by the username form's two buttons: validate + remember the username, then join
+  function submitJoinForm(form: HTMLFormElement, bot: boolean) {
+    const input = form.elements.namedItem("username") as HTMLInputElement
+    const username = input.value.trim()
+
+    if (!username) return showToast("Please enter a username", "error")
+
+    localStorage.setItem("username", username)
+    getUsernameAuthorization(username)
+
+    joinGame({ bot })
   }
 
 
@@ -616,17 +645,7 @@ export default function PlayPage() {
                   <form
                     onSubmit={(e) => {
                       e.preventDefault()
-
-                      const form = e.currentTarget
-                      const input = form.elements.namedItem("username") as HTMLInputElement
-                      const username = input.value.trim()
-
-                      if (!username) return showToast("Please enter a username", "error")
-
-                      localStorage.setItem("username", username)
-                      getUsernameAuthorization(username)
-
-                      joinGame()
+                      submitJoinForm(e.currentTarget, false)
                     }}
                     className="space-y-3"
                   >
@@ -643,16 +662,35 @@ export default function PlayPage() {
                       autoFocus
                     />
 
-                    <button type="submit" className="btn btn-primary w-full">
+                    <button type="submit" disabled={joining} className="btn btn-primary w-full">
                       Join game
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={joining}
+                      onClick={(e) => e.currentTarget.form && submitJoinForm(e.currentTarget.form, true)}
+                      className="btn btn-secondary w-full"
+                    >
+                      <IconBot className="h-4 w-4" />
+                      Play against bot
                     </button>
                   </form>
 
                 ) : (
 
-                  <button onClick={joinGame} className="btn btn-primary w-full">
-                    Join as {localStorage.getItem("username")}
-                  </button>
+                  <div className="space-y-3">
+
+                    <button onClick={() => joinGame()} disabled={joining} className="btn btn-primary w-full">
+                      Join as {localStorage.getItem("username")}
+                    </button>
+
+                    <button onClick={() => joinGame({ bot: true })} disabled={joining} className="btn btn-secondary w-full">
+                      <IconBot className="h-4 w-4" />
+                      Play against bot
+                    </button>
+
+                  </div>
 
                 )}
 
@@ -929,6 +967,7 @@ export type Status =
 export type Player = {
   username: string
   client_uid: string
+  bot?: boolean // true when this seat is played by the bot
 }
 
 export type GameRequest = {
