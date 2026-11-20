@@ -94,6 +94,16 @@ export function IconCopy({ className }: IconProps) {
     )
 }
 
+export function IconBot({ className }: IconProps) {
+    return (
+        <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...stroke}>
+            <rect x="4" y="8" width="16" height="12" rx="3" />
+            <path d="M12 8V4M10 4h4M2 14h2M20 14h2" />
+            <path d="M9 13.5v1.5M15 13.5v1.5" />
+        </svg>
+    )
+}
+
 export function IconClose({ className }: IconProps) {
     return (
         <svg viewBox="0 0 24 24" className={className} aria-hidden="true" {...stroke}>
