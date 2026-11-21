@@ -147,14 +147,7 @@ export default function PlayPage() {
       }
 
 
-      let role: "WHITE" | "BLACK" | "BOTH" | null = null;
-      if (players["BLACK"]?.client_uid === myUID && players["WHITE"]?.client_uid === myUID) {
-        role = "BOTH";
-      } else if (players["WHITE"]?.client_uid === myUID) {
-        role = "WHITE";
-      } else if (players["BLACK"]?.client_uid === myUID) {
-        role = "BLACK";
-      }
+      const role = roleFromPlayers(players, myUID);
 
       setUserSide(role); // UPDATE userSide live
 
@@ -255,13 +248,7 @@ export default function PlayPage() {
       // detect user side
       const myUID = localStorage.getItem("client_uid");
       const players = json.success[0]?.state?.player;
-      if (players) {
-        if (players["WHITE"]?.client_uid === myUID) setUserSide("WHITE");
-        else if (players["BLACK"]?.client_uid === myUID) setUserSide("BLACK");
-        else setUserSide(null);
-      } else {
-        setUserSide(null);
-      }
+      setUserSide(roleFromPlayers(players, myUID));
     }
 
   }
@@ -471,7 +458,7 @@ export default function PlayPage() {
   const renderStrip = (side: Side) => (
     <PlayerStrip
       side={side}
-      name={game?.state?.player?.[side]?.username}
+      name={game?.state?.player?.[side]?.username || (game?.state?.player?.[side]?.bot ? "Bot" : undefined)}
       placeholder={game?.state?.status === "WAITING_FOR_OTHER_PLAYER" ? "Waiting for opponent…" : "?"}
       active={game?.state?.status === "PLAYING" && game.state.current_turn === side}
       isYou={userSide === side || userSide === "BOTH"}
@@ -703,6 +690,11 @@ export default function PlayPage() {
               const role = getPlayerRole(game)
               const myTurn = isMyTurn(game, role)
 
+              // The game has started, so there IS an opponent: say whose move it is
+              const opponentSide: Side | null = role === "WHITE" ? "BLACK" : role === "BLACK" ? "WHITE" : null
+              const opponent = opponentSide ? game?.state?.player?.[opponentSide] : undefined
+              const opponentName = opponent?.bot ? "Bot" : opponent?.username
+
               if (!role)
                 return (
                   <div className="card flex items-center gap-2 px-4 py-3 text-xs text-zinc-400">
@@ -724,7 +716,9 @@ export default function PlayPage() {
                     </div>
                   ) : (
                     <div className="rounded-lg bg-white/5 px-3 py-2 text-xs text-zinc-300">
-                      Waiting for opponent
+                      {opponentName
+                        ? `${opponentName}'s turn`
+                        : role === "BOTH" ? "Waiting for next move" : "Opponent's turn"}
                     </div>
                   )}
 
@@ -902,24 +896,30 @@ function PlayerStrip({
   )
 }
 
+/**
+ * Which side(s) this browser plays. A seat flagged `bot` is never "mine", even if the
+ * backend reuses my client_uid for it, so playing against the bot leaves me with my own side.
+ */
+function roleFromPlayers(players: any, myUID: string | null): "WHITE" | "BLACK" | "BOTH" | null {
+  if (!players) return null
+
+  const mine = (p: any) => !!p && p.client_uid === myUID && !p.bot
+
+  const white = mine(players["WHITE"])
+  const black = mine(players["BLACK"])
+
+  if (white && black) return "BOTH"
+  if (white) return "WHITE"
+  if (black) return "BLACK"
+
+  return null
+}
+
 function getPlayerRole(game: any) {
 
   if (!game?.state?.player) return null
 
-  const myUID = localStorage.getItem("client_uid")
-
-  const players = game.state.player
-
-  if (players["WHITE"]?.client_uid === myUID && players["BLACK"]?.client_uid === myUID) {
-    return "BOTH"
-  }
-  if (players["WHITE"]?.client_uid === myUID) {
-    return "WHITE"
-  } else if (players["BLACK"]?.client_uid === myUID) {
-    return "BLACK"
-  }
-
-  return null
+  return roleFromPlayers(game.state.player, localStorage.getItem("client_uid"))
 
 }
 
@@ -927,7 +927,12 @@ function isMyTurn(game: any, role: string | null) {
 
   if (!role) return false
 
-  return game?.state?.current_turn === role
+  const turn = game?.state?.current_turn
+
+  // playing both sides (same account in both seats): it is always my move
+  if (role === "BOTH") return turn === "WHITE" || turn === "BLACK"
+
+  return turn === role
 
 }
 
