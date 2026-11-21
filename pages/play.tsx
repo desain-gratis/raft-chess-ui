@@ -265,7 +265,7 @@ export default function PlayPage() {
 
 
 
-  async function sendMove(from: string, to: string, revert: () => void) {
+  async function sendMove(from: string, to: string, revert: () => void, promotion?: string) {
     const client_uid = localStorage.getItem("client_uid")
     const authorization = localStorage.getItem("authorization")
 
@@ -275,6 +275,8 @@ export default function PlayPage() {
       created_at: new Date().toISOString(),
       from,
       to,
+      // chosen promotion piece (Q, R, B, N); only sent for a pawn reaching the last rank
+      ...(promotion ? { promotion } : {}),
       player: {
         client_uid,
         authorization
@@ -523,7 +525,7 @@ export default function PlayPage() {
 
             <ChessBoard
               boardState={game?.state?.board_state}
-              onMove={(from, to, revert) => {
+              onMove={(from, to, revert, promotion) => {
                 if (wsConnected === "disconnected") {
                   showToast("Disconnected from server, please refresh", "error")
                   revert()
@@ -536,7 +538,7 @@ export default function PlayPage() {
                   return
                 }
 
-                sendMove(from, to, revert)
+                sendMove(from, to, revert, promotion)
               }}
               userSide={userSide}
               turn={game?.state?.current_turn}

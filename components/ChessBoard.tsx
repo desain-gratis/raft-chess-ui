@@ -6,11 +6,17 @@ import React, { useState, useRef, useEffect } from "react";
 import ChessPiece from "./ChessPieces";
 import { colorOf, legalTargets, moveContextFromState } from "../lib/chessMoves";
 
+export type PromotionPiece = "Q" | "R" | "B" | "N";
+
+const PROMOTION_CHOICES: PromotionPiece[] = ["Q", "N", "R", "B"];
+const PROMOTION_NAMES: Record<PromotionPiece, string> = { Q: "Queen", R: "Rook", B: "Bishop", N: "Knight" };
+
 type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "k";
 
 type Props = {
     boardState?: string;
-    onMove?: (from: string, to: string, revert: () => void) => void;
+    /** `promotion` is set (Q, R, B or N) when a pawn reaches the last rank. */
+    onMove?: (from: string, to: string, revert: () => void, promotion?: PromotionPiece) => void;
     userSide?: "WHITE" | "BLACK" | "BOTH" | null;
     /** Whose turn it is. When given, click-to-move hints only appear on that side's turn. */
     turn?: string;
@@ -65,6 +71,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
     useEffect(() => {
         setLocalBoard(decodeBoard(boardState));
         setSelected(null);
+        setPromo(null);
     }, [boardState]);
 
     // Can the viewer pick up this piece right now?
@@ -82,7 +89,25 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
         ? legalTargets(localBoard, selected, moveContextFromState(fen, castlingRights))
         : [];
 
-    function commitMove(from: string, to: string) {
+    // pawn move waiting for the player to choose a promotion piece
+    const [promo, setPromo] = useState<{ from: string; to: string; color: "WHITE" | "BLACK" } | null>(null);
+
+    /** Starts a move; pawn moves to the last rank ask for a promotion piece first. */
+    function requestMove(from: string, to: string) {
+        const { r: fr, c: fc } = squareToIndex(from)
+        const piece = localBoard[fr][fc]
+        const lastRank = to[1] === (piece === "P" ? "8" : "1")
+
+        if ((piece === "P" || piece === "p") && lastRank) {
+            setSelected(null)
+            setPromo({ from, to, color: piece === "P" ? "WHITE" : "BLACK" })
+            return
+        }
+
+        commitMove(from, to)
+    }
+
+    function commitMove(from: string, to: string, promotion?: PromotionPiece) {
 
         const { r: fr, c: fc } = squareToIndex(from)
         const { r: tr, c: tc } = squareToIndex(to)
@@ -107,7 +132,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
             }
 
             next[fr][fc] = "\0"
-            next[tr][tc] = piece
+            next[tr][tc] = promotion ? (piece === "P" ? promotion : promotion.toLowerCase()) : piece
 
             return next
         })
@@ -118,7 +143,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
 
         setSelected(null)
 
-        onMove?.(from, to, revert)
+        onMove?.(from, to, revert, promotion)
     }
 
     useEffect(() => {
@@ -167,7 +192,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
 
         // click-to-move: tapping a piece the selected piece can capture completes the move
         if (selected && selected !== square && hints.includes(square)) {
-            commitMove(selected, square);
+            requestMove(selected, square);
             return;
         }
 
@@ -208,7 +233,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
             if (selected) {
                 const target = squareFromPointer(e.clientX, e.clientY);
 
-                if (target && hints.includes(target)) commitMove(selected, target);
+                if (target && hints.includes(target)) requestMove(selected, target);
                 else setSelected(null);
             }
 
@@ -219,7 +244,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
 
         if (toSquare && toSquare !== dragged.from) {
 
-            commitMove(dragged.from, toSquare)
+            requestMove(dragged.from, toSquare)
 
         } else if (toSquare === dragged.from && wasSelected) {
             // second click on the selected piece puts it back down
@@ -233,6 +258,34 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
 
     if (side === "BLACK") {
         board = [...board].reverse().map(r => [...r].reverse());
+    }
+
+    // Escape cancels the promotion picker
+    useEffect(() => {
+        if (!promo) return;
+
+        const onKey = (e: KeyboardEvent) => {
+            if (e.key === "Escape") setPromo(null);
+        };
+
+        document.addEventListener("keydown", onKey);
+        return () => document.removeEventListener("keydown", onKey);
+    }, [promo]);
+
+    // where the promotion picker goes: over the target file, extending away from the board edge
+    let promoStyle: React.CSSProperties | null = null;
+
+    if (promo) {
+        const { r, c } = squareToIndex(promo.to);
+        const row = side === "BLACK" ? 7 - r : r;
+        const col = side === "BLACK" ? 7 - c : c;
+
+        promoStyle = {
+            left: `${col * 12.5}%`,
+            width: "12.5%",
+            height: "50%",
+            top: row === 0 ? 0 : "50%",
+        };
     }
 
     // Square currently under the dragged piece (visual feedback only)
@@ -250,8 +303,45 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
                     onPointerUp={handlePointerUp}
                     onPointerCancel={() => setDragged(null)}
                     data-board
-                    className="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-lg"
+                    className="relative grid aspect-square w-full grid-cols-8 overflow-hidden rounded-lg"
                 >
+
+                    {promo && promoStyle && (
+                        <div
+                            className="absolute inset-0 z-30 bg-black/45"
+                            data-promotion-backdrop
+                            onPointerDown={(e) => { e.stopPropagation(); setPromo(null); }}
+                            onPointerUp={(e) => e.stopPropagation()}
+                        >
+                            <div
+                                role="dialog"
+                                aria-label="Choose promotion piece"
+                                data-promotion
+                                style={promoStyle}
+                                className="absolute flex flex-col overflow-hidden rounded-md bg-zinc-100 shadow-2xl ring-2 ring-white"
+                                onPointerDown={(e) => e.stopPropagation()}
+                                onPointerUp={(e) => e.stopPropagation()}
+                            >
+                                {(promoStyle.top === 0 ? PROMOTION_CHOICES : [...PROMOTION_CHOICES].reverse()).map((p) => (
+                                    <button
+                                        key={p}
+                                        type="button"
+                                        data-promote={p}
+                                        aria-label={`Promote to ${PROMOTION_NAMES[p]}`}
+                                        title={PROMOTION_NAMES[p]}
+                                        autoFocus={p === "Q"}
+                                        onClick={() => {
+                                            commitMove(promo.from, promo.to, p);
+                                            setPromo(null);
+                                        }}
+                                        className="flex aspect-square w-full items-center justify-center bg-zinc-100 p-[8%] hover:bg-emerald-200 focus-visible:bg-emerald-200"
+                                    >
+                                        <ChessPiece piece={(promo.color === "WHITE" ? p : p.toLowerCase()) as Piece} />
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {board.map((row, r) =>
                         row.map((piece, c) => {
