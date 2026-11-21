@@ -4,7 +4,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import ChessPiece from "./ChessPieces";
-import { colorOf, legalTargets } from "../lib/chessMoves";
+import { colorOf, legalTargets, moveContextFromState } from "../lib/chessMoves";
 
 type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "k";
 
@@ -14,6 +14,9 @@ type Props = {
     userSide?: "WHITE" | "BLACK" | "BOTH" | null;
     /** Whose turn it is. When given, click-to-move hints only appear on that side's turn. */
     turn?: string;
+    /** FEN and castling_rights from the game state: needed for castling / en passant hints. */
+    fen?: string;
+    castlingRights?: number;
 };
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -41,7 +44,7 @@ function decodeBoard(base64?: string) {
     return board;
 }
 
-export default function ChessBoard({ boardState, onMove, userSide = "WHITE", turn }: Props) {
+export default function ChessBoard({ boardState, onMove, userSide = "WHITE", turn, fen, castlingRights }: Props) {
 
     const side = userSide === "BLACK" ? "BLACK" : "WHITE";
 
@@ -76,7 +79,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
     }
 
     const hints = selected
-        ? legalTargets(localBoard, selected)
+        ? legalTargets(localBoard, selected, moveContextFromState(fen, castlingRights))
         : [];
 
     function commitMove(from: string, to: string) {
@@ -90,6 +93,19 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE", tur
             const next = prev.map(r => [...r])
 
             const piece = next[fr][fc]
+
+            // en passant: pawn moves diagonally onto an empty square, the passed pawn disappears
+            if (piece.toLowerCase() === "p" && fc !== tc && next[tr][tc] === "\0") next[fr][tc] = "\0"
+
+            // castling: bring the rook along
+            if (piece.toLowerCase() === "k" && Math.abs(tc - fc) === 2) {
+                const rookFrom = tc > fc ? 7 : 0
+                const rookTo = tc > fc ? 5 : 3
+
+                next[fr][rookTo] = next[fr][rookFrom]
+                next[fr][rookFrom] = "\0"
+            }
+
             next[fr][fc] = "\0"
             next[tr][tc] = piece
 

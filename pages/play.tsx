@@ -540,6 +540,8 @@ export default function PlayPage() {
               }}
               userSide={userSide}
               turn={game?.state?.current_turn}
+              fen={game?.state?.fen}
+              castlingRights={game?.state?.castling_rights}
             />
 
             {renderStrip(bottomSide)}
@@ -990,6 +992,7 @@ export type GameState = {
   halfmove_clock: number
   fillmove_number: number
   castling_rights: number
+  fen?: string
   board_state: string
   current_turn: Side | ""
   player: Partial<Record<Side, Player>> | null

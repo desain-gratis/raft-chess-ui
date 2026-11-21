@@ -8,6 +8,46 @@
 
 export type Board = string[][]
 
+/** Extra rules info that is not visible from piece positions alone. */
+export type MoveContext = {
+    /** Which castling moves are still allowed. Unknown = guess from piece positions. */
+    castling?: { K: boolean; Q: boolean; k: boolean; q: boolean }
+    /** Square a pawn can capture en passant on right now, e.g. "h6". */
+    enPassant?: string | null
+}
+
+// castling_rights bits, same as the backend
+const WHITE_KING_SIDE = 1 << 0
+const WHITE_QUEEN_SIDE = 1 << 1
+const BLACK_KING_SIDE = 1 << 2
+const BLACK_QUEEN_SIDE = 1 << 3
+
+/**
+ * Builds the move context from the game state. The FEN (castling + en passant fields)
+ * is preferred, `castling_rights` (bit field) is the fallback.
+ */
+export function moveContextFromState(fen?: string, castlingRights?: number): MoveContext {
+    const ctx: MoveContext = {}
+    const parts = typeof fen === "string" ? fen.trim().split(/\s+/) : []
+
+    if (parts.length >= 3 && /^(-|[KQkq]+)$/.test(parts[2])) {
+        const f = parts[2]
+
+        ctx.castling = { K: f.includes("K"), Q: f.includes("Q"), k: f.includes("k"), q: f.includes("q") }
+    } else if (typeof castlingRights === "number") {
+        ctx.castling = {
+            K: !!(castlingRights & WHITE_KING_SIDE),
+            Q: !!(castlingRights & WHITE_QUEEN_SIDE),
+            k: !!(castlingRights & BLACK_KING_SIDE),
+            q: !!(castlingRights & BLACK_QUEEN_SIDE),
+        }
+    }
+
+    if (parts.length >= 4) ctx.enPassant = /^[a-h][36]$/.test(parts[3]) ? parts[3] : null
+
+    return ctx
+}
+
 const EMPTY = "\0"
 const files = "abcdefgh"
 
@@ -149,8 +189,8 @@ function pseudoMoves(board: Board, r: number, c: number): Array<[number, number]
     return out
 }
 
-/** Castling hints: only based on piece positions (the board has no "has moved" info). */
-function castlingTargets(board: Board, r: number, c: number): Array<[number, number]> {
+/** Castling hints. Without `rights` this only looks at piece positions. */
+function castlingTargets(board: Board, r: number, c: number, rights?: MoveContext["castling"]): Array<[number, number]> {
     const piece = board[r][c]
     const color = colorOf(piece)
 
@@ -164,14 +204,17 @@ function castlingTargets(board: Board, r: number, c: number): Array<[number, num
 
     const out: Array<[number, number]> = []
 
+    const kingSide = rights ? (color === "WHITE" ? rights.K : rights.k) : true
+    const queenSide = rights ? (color === "WHITE" ? rights.Q : rights.q) : true
+
     // king side
-    if (board[home][7] === rook && board[home][5] === EMPTY && board[home][6] === EMPTY &&
+    if (kingSide && board[home][7] === rook && board[home][5] === EMPTY && board[home][6] === EMPTY &&
         !attacked(board, home, 5, enemy) && !attacked(board, home, 6, enemy)) {
         out.push([home, 6])
     }
 
     // queen side
-    if (board[home][0] === rook && board[home][1] === EMPTY && board[home][2] === EMPTY && board[home][3] === EMPTY &&
+    if (queenSide && board[home][0] === rook && board[home][1] === EMPTY && board[home][2] === EMPTY && board[home][3] === EMPTY &&
         !attacked(board, home, 3, enemy) && !attacked(board, home, 2, enemy)) {
         out.push([home, 2])
     }
@@ -180,7 +223,7 @@ function castlingTargets(board: Board, r: number, c: number): Array<[number, num
 }
 
 /** Squares the piece on `square` (e.g. "e2") can move to without leaving its king in check. */
-export function legalTargets(board: Board, square: string): string[] {
+export function legalTargets(board: Board, square: string, ctx: MoveContext = {}): string[] {
     const c = files.indexOf(square[0])
     const r = 8 - Number(square[1])
 
@@ -191,11 +234,23 @@ export function legalTargets(board: Board, square: string): string[] {
 
     if (!color) return []
 
-    const candidates = [...pseudoMoves(board, r, c), ...castlingTargets(board, r, c)]
+    const candidates = [...pseudoMoves(board, r, c), ...castlingTargets(board, r, c, ctx.castling)]
+
+    // en passant: a pawn may capture onto the empty target square
+    if (piece.toLowerCase() === "p" && ctx.enPassant) {
+        const tc = files.indexOf(ctx.enPassant[0])
+        const tr = 8 - Number(ctx.enPassant[1])
+        const dir = color === "WHITE" ? -1 : 1
+
+        if (tr === r + dir && Math.abs(tc - c) === 1 && board[tr][tc] === EMPTY) candidates.push([tr, tc])
+    }
 
     return candidates
         .filter(([tr, tc]) => {
             const next = board.map((row) => [...row])
+
+            // en passant removes the pawn that sits beside the capturing pawn
+            if (piece.toLowerCase() === "p" && tc !== c && next[tr][tc] === EMPTY) next[r][tc] = EMPTY
 
             next[tr][tc] = piece
             next[r][c] = EMPTY
