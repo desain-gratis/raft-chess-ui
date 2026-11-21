@@ -539,6 +539,7 @@ export default function PlayPage() {
                 sendMove(from, to, revert)
               }}
               userSide={userSide}
+              turn={game?.state?.current_turn}
             />
 
             {renderStrip(bottomSide)}
