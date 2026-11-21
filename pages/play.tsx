@@ -332,6 +332,9 @@ export default function PlayPage() {
   async function joinGame({ bot = false }: { bot?: boolean } = {}) {
     if (!id || joining) return
 
+    // bot games are only for the game's creator (client check; the server may enforce it later)
+    if (bot && !canPlayBot(game)) return showToast("Only the game creator can play against the bot", "error")
+
     let username = localStorage.getItem("username")
     if (!username) return showToast("Username is required", "error")
 
@@ -454,6 +457,8 @@ export default function PlayPage() {
   const shareMessage = buildShareMessage(game, gameId)
 
   // The board is drawn from the user's side (BLACK flips it); mirror that for the player strips.
+  const botAllowed = canPlayBot(game)
+
   const bottomSide: Side = userSide === "BLACK" ? "BLACK" : "WHITE"
   const topSide: Side = bottomSide === "WHITE" ? "BLACK" : "WHITE"
 
@@ -658,15 +663,17 @@ export default function PlayPage() {
                       Join game
                     </button>
 
-                    <button
-                      type="button"
-                      disabled={joining}
-                      onClick={(e) => e.currentTarget.form && submitJoinForm(e.currentTarget.form, true)}
-                      className="btn btn-secondary w-full"
-                    >
-                      <IconBot className="h-4 w-4" />
-                      Play against bot
-                    </button>
+                    {botAllowed && (
+                      <button
+                        type="button"
+                        disabled={joining}
+                        onClick={(e) => e.currentTarget.form && submitJoinForm(e.currentTarget.form, true)}
+                        className="btn btn-secondary w-full"
+                      >
+                        <IconBot className="h-4 w-4" />
+                        Play against bot
+                      </button>
+                    )}
                   </form>
 
                 ) : (
@@ -677,10 +684,12 @@ export default function PlayPage() {
                       Join as {localStorage.getItem("username")}
                     </button>
 
-                    <button onClick={() => joinGame({ bot: true })} disabled={joining} className="btn btn-secondary w-full">
-                      <IconBot className="h-4 w-4" />
-                      Play against bot
-                    </button>
+                    {botAllowed && (
+                      <button onClick={() => joinGame({ bot: true })} disabled={joining} className="btn btn-secondary w-full">
+                        <IconBot className="h-4 w-4" />
+                        Play against bot
+                      </button>
+                    )}
 
                   </div>
 
@@ -918,6 +927,26 @@ function roleFromPlayers(players: any, myUID: string | null): "WHITE" | "BLACK" 
   if (black) return "BLACK"
 
   return null
+}
+
+/**
+ * Client ID of whoever opened the game (the player already in a seat, or the request's
+ * player). Used to keep "Play against bot" for the creator only.
+ */
+function gameHostUID(game: any): string | null {
+  const seats = game?.state?.player
+  const seated = [seats?.WHITE, seats?.BLACK].find((p: any) => p?.client_uid && !p.bot)
+
+  return seated?.client_uid || game?.request?.player?.client_uid || null
+}
+
+/** "Play against bot" is only offered to the game's creator (same client ID). Unknown creator = offered. */
+function canPlayBot(game: any): boolean {
+  const host = gameHostUID(game)
+
+  if (!host) return true
+
+  return host === localStorage.getItem("client_uid")
 }
 
 function getPlayerRole(game: any) {
