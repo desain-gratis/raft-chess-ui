@@ -4,6 +4,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import ChessPiece from "./ChessPieces";
+import { colorOf, legalTargets, moveContextFromState } from "../lib/chessMoves";
 
 type Piece = "P" | "R" | "N" | "B" | "Q" | "K" | "p" | "r" | "n" | "b" | "q" | "k";
 
@@ -11,6 +12,11 @@ type Props = {
     boardState?: string;
     onMove?: (from: string, to: string, revert: () => void) => void;
     userSide?: "WHITE" | "BLACK" | "BOTH" | null;
+    /** Whose turn it is. When given, click-to-move hints only appear on that side's turn. */
+    turn?: string;
+    /** FEN and castling_rights from the game state: needed for castling / en passant hints. */
+    fen?: string;
+    castlingRights?: number;
 };
 
 const files = ["a", "b", "c", "d", "e", "f", "g", "h"];
@@ -38,7 +44,7 @@ function decodeBoard(base64?: string) {
     return board;
 }
 
-export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: Props) {
+export default function ChessBoard({ boardState, onMove, userSide = "WHITE", turn, fen, castlingRights }: Props) {
 
     const side = userSide === "BLACK" ? "BLACK" : "WHITE";
 
@@ -52,9 +58,68 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
     const [squareSize, setSquareSize] = useState(60);
 
+    // piece picked with a click (or the start of a drag) whose moves are shown as hints
+    const [selected, setSelected] = useState<string | null>(null);
+    const [wasSelected, setWasSelected] = useState(false);
+
     useEffect(() => {
         setLocalBoard(decodeBoard(boardState));
+        setSelected(null);
     }, [boardState]);
+
+    // Can the viewer pick up this piece right now?
+    function isSelectable(piece: string) {
+        const color = colorOf(piece);
+
+        if (!color || !userSide) return false;
+        if (userSide !== "BOTH" && userSide !== color) return false;
+        if (turn && turn !== color) return false;
+
+        return true;
+    }
+
+    const hints = selected
+        ? legalTargets(localBoard, selected, moveContextFromState(fen, castlingRights))
+        : [];
+
+    function commitMove(from: string, to: string) {
+
+        const { r: fr, c: fc } = squareToIndex(from)
+        const { r: tr, c: tc } = squareToIndex(to)
+
+        const prevBoard = localBoard.map(r => [...r])
+
+        setLocalBoard(prev => {
+            const next = prev.map(r => [...r])
+
+            const piece = next[fr][fc]
+
+            // en passant: pawn moves diagonally onto an empty square, the passed pawn disappears
+            if (piece.toLowerCase() === "p" && fc !== tc && next[tr][tc] === "\0") next[fr][tc] = "\0"
+
+            // castling: bring the rook along
+            if (piece.toLowerCase() === "k" && Math.abs(tc - fc) === 2) {
+                const rookFrom = tc > fc ? 7 : 0
+                const rookTo = tc > fc ? 5 : 3
+
+                next[fr][rookTo] = next[fr][rookFrom]
+                next[fr][rookFrom] = "\0"
+            }
+
+            next[fr][fc] = "\0"
+            next[tr][tc] = piece
+
+            return next
+        })
+
+        const revert = () => {
+            setLocalBoard(prevBoard)
+        }
+
+        setSelected(null)
+
+        onMove?.(from, to, revert)
+    }
 
     useEffect(() => {
 
@@ -100,7 +165,21 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
         e.preventDefault();
 
+        // click-to-move: tapping a piece the selected piece can capture completes the move
+        if (selected && selected !== square && hints.includes(square)) {
+            commitMove(selected, square);
+            return;
+        }
+
         (e.target as HTMLElement).setPointerCapture(e.pointerId);
+
+        if (isSelectable(piece)) {
+            setWasSelected(selected === square);
+            setSelected(square);
+        } else {
+            setWasSelected(false);
+            setSelected(null);
+        }
 
         setPointer({
             x: e.clientX,
@@ -123,32 +202,28 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
     function handlePointerUp(e: React.PointerEvent) {
 
-        if (!dragged) return;
+        if (!dragged) {
+
+            // click on an empty square (or one we cannot select): move there if it is a hint
+            if (selected) {
+                const target = squareFromPointer(e.clientX, e.clientY);
+
+                if (target && hints.includes(target)) commitMove(selected, target);
+                else setSelected(null);
+            }
+
+            return;
+        }
 
         const toSquare = squareFromPointer(e.clientX, e.clientY);
 
         if (toSquare && toSquare !== dragged.from) {
 
-            const { r: fr, c: fc } = squareToIndex(dragged.from)
-            const { r: tr, c: tc } = squareToIndex(toSquare)
+            commitMove(dragged.from, toSquare)
 
-            const prevBoard = localBoard.map(r => [...r])
-
-            setLocalBoard(prev => {
-                const next = prev.map(r => [...r])
-
-                const piece = next[fr][fc]
-                next[fr][fc] = "\0"
-                next[tr][tc] = piece
-
-                return next
-            })
-
-            const revert = () => {
-                setLocalBoard(prevBoard)
-            }
-
-            onMove?.(dragged.from, toSquare, revert)
+        } else if (toSquare === dragged.from && wasSelected) {
+            // second click on the selected piece puts it back down
+            setSelected(null);
         }
 
         setDragged(null);
@@ -174,6 +249,7 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
                     onPointerMove={handlePointerMove}
                     onPointerUp={handlePointerUp}
                     onPointerCancel={() => setDragged(null)}
+                    data-board
                     className="grid aspect-square w-full grid-cols-8 overflow-hidden rounded-lg"
                 >
 
@@ -199,8 +275,13 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
                                 <div
                                     key={square}
+                                    data-square={square}
                                     className={`relative flex aspect-square items-center justify-center ${isDark ? "bg-[#739552]" : "bg-[#ebecd0]"}`}
                                 >
+
+                                    {selected === square && !dragged && (
+                                        <span className="pointer-events-none absolute inset-0 bg-yellow-300/50" />
+                                    )}
 
                                     {isOriginal && (
                                         <span className="pointer-events-none absolute inset-0 bg-yellow-300/40" />
@@ -208,6 +289,20 @@ export default function ChessBoard({ boardState, onMove, userSide = "WHITE" }: P
 
                                     {isHover && (
                                         <span className="pointer-events-none absolute inset-0 bg-white/10 shadow-[inset_0_0_0_3px_rgba(255,255,255,0.7)]" />
+                                    )}
+
+                                    {hints.includes(square) && (
+                                        piece === "\0" ? (
+                                            <span
+                                                data-hint="move"
+                                                className="pointer-events-none absolute z-20 h-[28%] w-[28%] rounded-full bg-black/25"
+                                            />
+                                        ) : (
+                                            <span
+                                                data-hint="capture"
+                                                className="pointer-events-none absolute inset-0 z-20 rounded-full border-[5px] border-black/25"
+                                            />
+                                        )
                                     )}
 
                                     {showRank && (
